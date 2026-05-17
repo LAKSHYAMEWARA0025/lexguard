@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { extractText, getDocumentProxy } from "unpdf";
+// @ts-ignore
+import * as mammoth from "mammoth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +14,15 @@ export async function POST(req: NextRequest) {
     
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    // Vercel Free Tier Limit is 4.5MB. Prevent memory overflow crashes.
+    const MAX_FILE_SIZE = 4.5 * 1024 * 1024; 
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File exceeds the 4.5MB limit. Please upload a smaller contract." }, 
+        { status: 400 }
+      );
     }
 
     // Convert file to buffer
@@ -33,16 +44,45 @@ export async function POST(req: NextRequest) {
     const fileUrl = uploadResult.secure_url;
     console.log('Cloudinary Upload Success:', fileUrl);
 
-    // 2. Extract text from PDF using unpdf
-    const pdf = await getDocumentProxy(new Uint8Array(buffer));
-    const extractedResult = await extractText(pdf, { mergePages: true });
-    const fullText = extractedResult.text;
-    console.log('PDF Extraction Success, Text Length:', fullText.length);
+    // 2. Extract text from file (PDF, DOCX, TXT)
+    const mimeType = file.type;
+    let fullText = "";
 
-    // 3. Split into chunks (~1000 size, ~200 overlap)
+    if (mimeType === "application/pdf") {
+      // Handle PDF
+      const pdf = await getDocumentProxy(new Uint8Array(buffer));
+      const extractedResult = await extractText(pdf, { mergePages: true });
+      const rawText = extractedResult.text as any;
+      if (Array.isArray(rawText)) {
+          fullText = rawText.join("\n");
+      } else {
+          fullText = String(rawText);
+      }
+      console.log('PDF Extraction Success, Text Length:', fullText.length);
+    } 
+    else if (mimeType === "text/plain") {
+      // Handle TXT
+      fullText = await file.text();
+      console.log('TXT Extraction Success, Text Length:', fullText.length);
+    } 
+    else if (mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.endsWith('.docx')) {
+      // Handle DOCX
+      const result = await mammoth.extractRawText({ buffer });
+      fullText = result.value;
+      console.log('DOCX Extraction Success, Text Length:', fullText.length);
+    } 
+    else {
+      return NextResponse.json({ error: "Unsupported file type. Please upload a PDF, DOCX, or TXT file." }, { status: 400 });
+    }
+    
+    if (!fullText || fullText.trim().length === 0) {
+        throw new Error("Failed to extract text from the document. The file may be empty or unreadable.");
+    }
+
+    // 3. Split into chunks (~2000 size, ~500 overlap)
     const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkSize: 2000,
+      chunkOverlap: 500,
     });
     
     const chunks = await splitter.createDocuments([fullText]);

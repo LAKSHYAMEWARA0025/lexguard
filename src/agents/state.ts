@@ -1,7 +1,21 @@
 import { Annotation } from "@langchain/langgraph";
 
+export interface AdvisorReportItem {
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  clause: string;
+  trap: string;
+  harshReality: string;
+  advice: string;
+}
+
+export interface FinalReport {
+  advisorReport: AdvisorReportItem[];
+  overallVerdict: string;
+}
+
 export const GraphState = Annotation.Root({
   documentId: Annotation<string>(),
+  documentContext: Annotation<string>(), // NEW: E.g., "This is a SaaS Master Subscription Agreement between a software vendor and an enterprise client."
   queries: Annotation<string[]>({
     reducer: (curr, next) => next, // Overwrite with new queries
     default: () => [],
@@ -14,7 +28,7 @@ export const GraphState = Annotation.Root({
     reducer: (curr, next) => next,
     default: () => [],
   }),
-  finalReport: Annotation<any>({
+  finalReport: Annotation<FinalReport | null>({
     reducer: (curr, next) => next,
     default: () => null,
   })

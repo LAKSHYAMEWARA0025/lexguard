@@ -19,7 +19,16 @@ export async function POST(req: NextRequest) {
 
     console.log("✅ Graph Execution Complete!");
     
-    return NextResponse.json({ success: true, queries: finalState.queries });
+    // At the end of the analyze route, before returning the response
+    if (!finalState.finalReport || !finalState.finalReport.advisorReport || finalState.finalReport.advisorReport.length === 0) {
+      // If the final report is completely empty, it means the pipeline failed or timed out.
+      return NextResponse.json(
+        { error: "AI Engine Rate Limit Exceeded. The system is currently overloaded. Please try again in 60 seconds." }, 
+        { status: 429 }
+      );
+    }
+
+    return NextResponse.json({ success: true, finalReport: finalState.finalReport });
   } catch (error: any) {
     console.error("Graph Execution Failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
