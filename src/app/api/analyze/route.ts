@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeGraph } from "../../../agents/graph";
+import { getAnalyzeGraph } from "../../../agents/graph";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +14,7 @@ export async function POST(req: NextRequest) {
     console.log(`\n🚀 Starting Analysis Graph for Document: ${documentId}`);
     
     // Trigger the LangGraph execution
+    const analyzeGraph = getAnalyzeGraph();
     const finalState = await analyzeGraph.invoke({
       documentId: documentId,
       // The other state variables will initialize with their defaults

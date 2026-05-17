@@ -4,13 +4,23 @@ import { GraphState } from "../state";
 import { createClient } from "@supabase/supabase-js";
 import { withRetry } from "../../lib/withRetry";
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+let supabaseClient: any = null;
+const getSupabase = () => {
+  if (!supabaseClient) {
+    supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+    );
+  }
+  return supabaseClient;
+};
 
 export async function classifierNode(state: typeof GraphState.State) {
   console.log("--- [ClassifierNode] INITIATED ---");
   const { documentId } = state;
 
   // Fetch the first chunk of the document to get the preamble/title
+  const supabase = getSupabase();
   const { data: firstChunk, error } = await supabase
     .from('document_chunks')
     .select('content')
