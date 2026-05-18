@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import cloudinary from '@/lib/cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 import { supabase } from '@/lib/supabase';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
@@ -35,6 +35,12 @@ export async function POST(req: NextRequest) {
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       return NextResponse.json({ error: "Cloudinary configuration missing on server." }, { status: 500 });
     }
+
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
 
     // 1. Upload to Cloudinary via stream
     const uploadResult = await new Promise((resolve, reject) => {
@@ -82,8 +88,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unsupported file type. Please upload a PDF, DOCX, or TXT file." }, { status: 400 });
     }
     
-    if (!fullText || fullText.trim().length === 0) {
-        throw new Error("Failed to extract text from the document. The file may be empty or unreadable.");
+    if (!fullText || fullText.trim().length < 10) {
+      console.error("[INGEST ERROR] Could not extract readable text. Length:", fullText ? fullText.length : 0);
+      return NextResponse.json({ error: "Could not extract readable text from this document. Ensure it is not a scanned image." }, { status: 400 });
     }
 
     // 3. Split into chunks (~2000 size, ~500 overlap)
@@ -114,24 +121,34 @@ export async function POST(req: NextRequest) {
 
     // 1. Initialize Google Embeddings
     const embeddingsModel = new GoogleGenerativeAIEmbeddings({
-      model: "models/gemini-embedding-001", // Ensure this exact string
+      model: "models/gemini-embedding-001",
+      apiKey: process.env.GOOGLE_API_KEY,
     });
 
-    // 2. Generate Embeddings (Crucial: await the result)
-    console.log('Generating embeddings for', chunkTexts.length, 'chunks...');
-    const embeddings = await embeddingsModel.embedDocuments(chunkTexts);
-
-    if (!embeddings || embeddings.length === 0 || !embeddings[0]) {
-      throw new Error("Google API returned empty embeddings.");
+    console.log('Generating embeddings for', chunks.length, 'chunks...');
+    
+    // 2. Generate Embeddings & Format for Supabase
+    const chunksToInsert = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      let vector;
+      try {
+        vector = await embeddingsModel.embedQuery(chunk.pageContent);
+        // 3. Pre-Insert Database Check
+        if (!vector || vector.length === 0) throw new Error("Google API returned an empty vector.");
+        
+        chunksToInsert.push({
+          document_id: documentId,
+          content: chunk.pageContent,
+          embedding: vector
+        });
+      } catch (error: any) {
+        console.error(`[INGEST ERROR] Failed to generate embedding for chunk ${i}:`, error.message);
+        return NextResponse.json({ error: `AI Embedding failed: ${error.message}` }, { status: 500 });
+      }
     }
-    console.log(`Embedding Success! Vector dimensions: ${embeddings[0].length}`);
-
-    // 3. Format data for Supabase pgvector
-    const chunksToInsert = chunks.map((chunk, index) => ({
-      document_id: documentId,
-      content: chunk.pageContent,
-      embedding: embeddings[index] 
-    }));
+    
+    console.log(`Embedding Success! Vectors generated for ${chunksToInsert.length} chunks.`);
 
     // 4. Insert into Supabase
     const { error: chunksError } = await supabase

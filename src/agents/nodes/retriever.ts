@@ -15,9 +15,9 @@ export async function retrieverNode(state: typeof GraphState.State) {
   
   console.log(`[RetrieverNode] Inputs - Document ID: ${documentId}, Queries count: ${queries.length}`);
 
-  // Initialize embeddings model exactly as specified
   const embeddingsModel = new GoogleGenerativeAIEmbeddings({
     model: "models/gemini-embedding-001",
+    apiKey: process.env.GOOGLE_API_KEY,
   });
 
   console.log(`[RetrieverNode] Generating embeddings for ${queries.length} queries concurrently...`);
