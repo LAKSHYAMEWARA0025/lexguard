@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import cloudinary from '@/lib/cloudinary';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +30,11 @@ export async function POST(req: NextRequest) {
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // Add quiet connectivity check
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return NextResponse.json({ error: "Cloudinary configuration missing on server." }, { status: 500 });
+    }
 
     // 1. Upload to Cloudinary via stream
     const uploadResult = await new Promise((resolve, reject) => {

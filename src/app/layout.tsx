@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 const jetBrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-});
-
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "LEXGUARD - AI Contract Intelligence",
-  description: "Adversarial AI contract analysis platform.",
+  title: "Vanguard — A Group Leading the Way",
+  description: "Upload any legal contract and Vanguard's adversarial AI pipeline will surface hidden traps, one-sided clauses, and liability risks in seconds.",
 };
 
 export default function RootLayout({
@@ -25,10 +27,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${jetBrainsMono.variable} ${spaceGrotesk.variable} h-full antialiased dark`}
+      className={`${outfit.variable} ${jetBrainsMono.variable} h-full antialiased dark`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-mono bg-[#030303] text-[#f5f5f5]">
+      <body className="h-full flex flex-col font-sans bg-[#0a0a0a] text-[#f5f5f5]">
         {children}
       </body>
     </html>

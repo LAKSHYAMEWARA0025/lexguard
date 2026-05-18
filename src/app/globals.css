@@ -1,75 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  --background: #030303;
-  --foreground: #f5f5f5;
-  --surface: #111111;
-  --surface-border: #1a1a1a;
-  --accent: #f97316;
-  --secondary: #6b7280;
-  --muted: #9ca3af;
+  --bg: #080808;
+  --surface: #0f0f0f;
+  --ember: #e8530e;
+  --flame: #ff6b35;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-mono: var(--font-jetbrains-mono), monospace;
-  --font-heading: var(--font-space-grotesk), Arial, Helvetica, sans-serif;
+  --color-background: var(--bg);
+  --color-foreground: #e5e5e5;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
 }
+
+html, body { height: 100%; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: #e5e5e5;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.heading-font {
-  font-family: var(--font-heading);
+/* Custom scrollbar */
+* { scrollbar-width: thin; scrollbar-color: rgba(232,83,14,0.15) transparent; }
+*::-webkit-scrollbar       { width: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(232,83,14,0.2); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(232,83,14,0.35); }
+
+/* Burn line keyframe */
+@keyframes burn {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.animate-burn {
+  background-size: 200% 100%;
+  animation: burn 2s linear infinite;
 }
 
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Stagger fade in */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-up {
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.animate-fade-in-up {
-  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* Slide in from left */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.anim-slide-right {
+  animation: slideInLeft 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@layer utilities {
-  .bg-grid-pattern {
-    background-image: linear-gradient(to right, #ffffff0a 1px, transparent 1px),
-                      linear-gradient(to bottom, #ffffff0a 1px, transparent 1px);
-    background-size: 40px 40px;
-  }
-  .glass-panel {
-    @apply bg-black/40 backdrop-blur-md border border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)];
-  }
-  .neon-border-blue {
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5), inset 0 0 10px rgba(59, 130, 246, 0.2);
-    border: 1px solid rgba(59, 130, 246, 0.8);
-  }
-  .neon-text-blue {
-    text-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
-  }
-  .neon-border-red {
-    box-shadow: 0 0 10px rgba(220, 38, 38, 0.5), inset 0 0 10px rgba(220, 38, 38, 0.2);
-    border: 1px solid rgba(220, 38, 38, 0.8);
-  }
-  .neon-border-yellow {
-    box-shadow: 0 0 10px rgba(202, 138, 4, 0.5), inset 0 0 10px rgba(202, 138, 4, 0.2);
-    border: 1px solid rgba(202, 138, 4, 0.8);
-  }
-  .neon-border-green {
-    box-shadow: 0 0 10px rgba(22, 163, 74, 0.5), inset 0 0 10px rgba(22, 163, 74, 0.2);
-    border: 1px solid rgba(22, 163, 74, 0.8);
-  }
+/* Glow pulse for the risk score */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(232,83,14,0.15); }
+  50%      { box-shadow: 0 0 40px rgba(232,83,14,0.3); }
 }
+.glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
 
-/* Add a pulsing scanline animation for the analyzing state */
-@keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+/* Soothing float */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
-.animate-scan {
-  animation: scanline 3s linear infinite;
+.anim-float {
+  animation: float 6s ease-in-out infinite;
 }
