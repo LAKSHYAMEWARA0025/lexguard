@@ -1,4 +1,4 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
@@ -15,10 +15,9 @@ export async function verifierNode(state: typeof GraphState.State) {
     return { risks: [] };
   }
 
-  const llm = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "llama-3.1-8b-instant", // Updated model ID
-    temperature: 0, 
+  const llm = new ChatGoogleGenerativeAI({
+    model: "gemini-flash-latest",
+    temperature: 0,
   });
 
   // We mirror the Red Team's risk schema to seamlessly overwrite the state
@@ -55,9 +54,9 @@ export async function verifierNode(state: typeof GraphState.State) {
     await sleep(3000); // Throttle to prevent Groq TPM burst limits
     const response = await withRetry(() => structuredLlm.invoke(prompt));
     console.log(`[VerifierNode] Successfully finished. Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
-    
+
     // Overwrite the unverified risks with the strictly verified ones
-    return { risks: response.verifiedRisks }; 
+    return { risks: response.verifiedRisks };
   } catch (error: any) {
     console.error("[VerifierNode] CRITICAL ERROR:", error.message || error);
     // If parsing fails, return original risks so pipeline doesn't crash, but log the failure

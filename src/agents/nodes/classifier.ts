@@ -1,4 +1,4 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { createClient } from "@supabase/supabase-js";
@@ -33,10 +33,9 @@ export async function classifierNode(state: typeof GraphState.State) {
     return { documentContext: "Standard legal contract." };
   }
 
-  const llm = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "llama-3.1-8b-instant", // Updated model ID
-    temperature: 0, 
+  const llm = new ChatGoogleGenerativeAI({
+    model: "gemini-flash-latest",
+    temperature: 0,
   });
 
   const schema = z.object({

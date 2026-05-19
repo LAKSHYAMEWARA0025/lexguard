@@ -17,11 +17,18 @@ export async function POST(req: NextRequest) {
     
     // Trigger the LangGraph execution
     const analyzeGraph = getAnalyzeGraph();
-    let finalState;
+    let exactApiCallCount = 0;
+    const callTracker = {
+      handleLLMStart: async () => { exactApiCallCount++; },
+      handleChatModelStart: async () => { exactApiCallCount++; },
+    };
+
+    let finalState: any;
     try {
-      finalState = await analyzeGraph.invoke({
-        documentId: documentId,
-      });
+      finalState = await analyzeGraph.invoke(
+        { documentId: documentId },
+        { callbacks: [callTracker] }
+      );
     } catch (graphError: any) {
       console.error("LangGraph Execution Failed:", graphError);
       return NextResponse.json({ error: graphError.message || "LangGraph execution failed." }, { status: 500 });
@@ -38,7 +45,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, finalReport: finalState.finalReport, apiCallCount: 7 });
+    return NextResponse.json({ success: true, finalReport: finalState.finalReport, apiCallCount: exactApiCallCount });
   } catch (error: any) {
     console.error("Analyze Route Failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

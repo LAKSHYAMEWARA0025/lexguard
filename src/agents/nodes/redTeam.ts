@@ -1,4 +1,4 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
@@ -14,13 +14,12 @@ export async function redTeam(state: typeof GraphState.State) {
     console.warn("[RedTeamNode] No chunks retrieved. Skipping analysis.");
     return { risks: [] };
   }
-  
+
   console.log(`[RedTeamNode] Inputs - Received ${retrievedChunks.length} retrieved chunks.`);
 
-  const llm = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "llama-3.1-8b-instant", // Updated model ID
-    temperature: 0, 
+  const llm = new ChatGoogleGenerativeAI({
+    model: "gemini-flash-latest",
+    temperature: 0,
   });
 
   const schema = z.object({

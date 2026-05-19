@@ -1,4 +1,4 @@
-import { ChatGroq } from "@langchain/groq";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
@@ -22,10 +22,9 @@ export async function advisorNode(state: typeof GraphState.State) {
 
   console.log(`[AdvisorNode] Inputs - Received ${risks.length} risks from Red Team.`);
 
-  const llm = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "llama-3.1-8b-instant", // Updated model ID
-    temperature: 0, 
+  const llm = new ChatGoogleGenerativeAI({
+    model: "gemini-flash-latest", // Lightning fast, 1M TPM free limit
+    temperature: 0,
   });
 
   const schema = z.object({
