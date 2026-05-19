@@ -4,6 +4,19 @@ export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export interface AdvisorReportItem { severity: Severity; clause: string; trap: string; harshReality: string; advice: string; }
 export interface FinalReport { advisorReport: AdvisorReportItem[]; overallVerdict: string; }
 
+const processResponse = async (res: Response) => {
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Server returned an error.");
+    return data;
+  } else {
+    // It's a raw server crash (text/html)
+    const textError = await res.text();
+    throw new Error(`Fatal Server Error: ${textError.slice(0, 150)}...`);
+  }
+};
+
 export function useContractAnalysis() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "analyzing" | "complete" | "error">("idle");
@@ -31,11 +44,9 @@ export function useContractAnalysis() {
       const formData = new FormData();
       formData.append("file", file);
       const ingestRes = await fetch("/api/ingest", { method: "POST", body: formData });
-      const ingestData = await ingestRes.json();
-      if (!ingestRes.ok) throw new Error(ingestData.error || "Document ingestion failed.");
+      const ingestData = await processResponse(ingestRes);
       const analyzeRes = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: ingestData.documentId }) });
-      const analyzeData = await analyzeRes.json();
-      if (!analyzeRes.ok) throw new Error(analyzeData.error || "Graph analysis failed.");
+      const analyzeData = await processResponse(analyzeRes);
       
       setReport(analyzeData.finalReport);
       if (analyzeData.apiCallCount) setApiCallCount(analyzeData.apiCallCount);
