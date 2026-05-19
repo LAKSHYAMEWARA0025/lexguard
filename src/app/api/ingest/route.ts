@@ -167,10 +167,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Ingestion Pipeline Failed:', error);
-    return NextResponse.json(
-      { error: error.message || 'An error occurred during ingestion' }, 
-      { status: 500 }
-    );
+    console.error("[Backend Route Error]:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

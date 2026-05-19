@@ -43,16 +43,22 @@ export function useContractAnalysis() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      
+      console.log("[Frontend] 📤 Initiating Document Ingestion...");
       const ingestRes = await fetch("/api/ingest", { method: "POST", body: formData });
+      console.log(`[Frontend] 📥 Ingest Response Status: ${ingestRes.status}`);
       const ingestData = await processResponse(ingestRes);
+      
+      console.log(`[Frontend] 🧠 Initiating LangGraph Analysis for DocID: ${ingestData.documentId}...`);
       const analyzeRes = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: ingestData.documentId }) });
+      console.log(`[Frontend] 🏁 Analyze Response Status: ${analyzeRes.status}`);
       const analyzeData = await processResponse(analyzeRes);
       
       setReport(analyzeData.finalReport);
       if (analyzeData.apiCallCount) setApiCallCount(analyzeData.apiCallCount);
       setStatus("complete");
     } catch (err: any) {
-      console.error(err);
+      console.error("[Frontend] ❌ CATASTROPHIC FAILURE:", err);
       setErrorMessage(err.message || "Analysis failed.");
       setStatus("error");
     }

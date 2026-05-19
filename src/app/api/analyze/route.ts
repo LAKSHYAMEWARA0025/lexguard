@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, finalReport: finalState.finalReport, apiCallCount: exactApiCallCount });
   } catch (error: any) {
-    console.error("Analyze Route Failed:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[Backend Route Error]:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }
