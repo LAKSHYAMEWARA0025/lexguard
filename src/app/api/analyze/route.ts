@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAnalyzeGraph } from "../../../agents/graph";
@@ -17,42 +18,23 @@ export async function POST(req: NextRequest) {
     
     // Trigger the LangGraph execution
     const analyzeGraph = getAnalyzeGraph();
-    let exactApiCallCount = 0;
-    const callTracker = {
-      handleLLMStart: async () => { exactApiCallCount++; },
-      handleChatModelStart: async () => { exactApiCallCount++; },
-    };
-
-    let finalState: any;
-    const timeoutWatchdog = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Graph execution timed out (45s)")), 45000)
-    );
-
-    try {
-      finalState = await Promise.race([
-        analyzeGraph.invoke(
-          { documentId: documentId },
-          { callbacks: [callTracker] }
-        ),
-        timeoutWatchdog
-      ]);
-    } catch (graphError: any) {
-      console.error("LangGraph Execution Failed:", graphError);
-      return NextResponse.json({ error: graphError.message || "LangGraph execution failed." }, { status: 500 });
-    }
-
-    console.log("✅ Graph Execution Complete!");
     
-    // At the end of the analyze route, before returning the response
-    if (!finalState.finalReport || !finalState.finalReport.advisorReport || finalState.finalReport.advisorReport.length === 0) {
-      // If the final report is completely empty, it means the pipeline failed or timed out.
-      return NextResponse.json(
-        { error: "AI Engine Rate Limit Exceeded. The system is currently overloaded. Please try again in 60 seconds." }, 
-        { status: 429 }
-      );
-    }
-
-    return NextResponse.json({ success: true, finalReport: finalState.finalReport, apiCallCount: exactApiCallCount });
+    const stream = await analyzeGraph.stream({ documentId: documentId });
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            // Send each LangGraph node's output as it finishes
+            controller.enqueue(encoder.encode(JSON.stringify(chunk) + '\n'));
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      }
+    });
+    return new Response(readable, { headers: { 'Content-Type': 'application/x-ndjson' } });
   } catch (error: any) {
     console.error("[Backend Route Error]:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });

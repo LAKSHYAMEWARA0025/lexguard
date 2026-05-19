@@ -47,10 +47,12 @@ export async function verifierNode(state: typeof GraphState.State) {
   3. If a risk IS supported, keep it. You must rewrite the 'clause' to match the exact wording in the text, and tone down any exaggerated claims in the 'issue' description.
   4. Return ONLY the fully verified risks. If none are valid, return an empty array.
   
-  CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
+  CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.
+  
+  CRITICAL SPEED CONSTRAINT: You must be extremely concise. Limit your 'reasoning' or 'explanation' fields to a maximum of 2 short sentences per risk. Do not write lengthy paragraphs. Generate your JSON output as fast as possible.`;
 
   try {
-    const response = await withRetry(() => structuredLlm.invoke(prompt));
+    const response = await withRetry(() => structuredLlm.invoke(prompt, { signal: AbortSignal.timeout(20000) }));
     console.log(`[VerifierNode] Successfully finished. Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
 
     // Overwrite the unverified risks with the strictly verified ones

@@ -17,7 +17,7 @@ export async function redTeam(state: typeof GraphState.State) {
   console.log(`[RedTeamNode] Inputs - Received ${retrievedChunks.length} retrieved chunks.`);
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-flash-latest",
+    model: "gemini-2.5-flash",
     temperature: 0,
   });
 
