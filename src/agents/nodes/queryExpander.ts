@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
@@ -6,8 +6,9 @@ import { withRetry } from "../../lib/withRetry";
 export async function queryExpander(state: typeof GraphState.State) {
   console.log("[QueryExpander] Started. Input data:", JSON.stringify({ documentId: state.documentId, documentContext: state.documentContext }));
 
-  const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-flash-latest",
+  const llm = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama-3.1-8b-instant",
     temperature: 0,
   });
 

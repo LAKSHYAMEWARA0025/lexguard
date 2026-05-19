@@ -3,7 +3,6 @@ import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function redTeam(state: typeof GraphState.State) {
   console.log("[RedTeamNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0 }));
@@ -58,7 +57,6 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
   console.log(`[RedTeamNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
   try {
-    await sleep(3000); // Throttle to prevent Groq TPM burst limits
     const response = await withRetry(() => structuredLlm.invoke(prompt));
     console.log("[RedTeamNode] Zod validation passed!");
     console.log(`[RedTeamNode] Successfully finished. Final structured output writing to state: ${response?.risks?.length || 0} risks identified.`);

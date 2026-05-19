@@ -24,11 +24,18 @@ export async function POST(req: NextRequest) {
     };
 
     let finalState: any;
+    const timeoutWatchdog = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Graph execution timed out (45s)")), 45000)
+    );
+
     try {
-      finalState = await analyzeGraph.invoke(
-        { documentId: documentId },
-        { callbacks: [callTracker] }
-      );
+      finalState = await Promise.race([
+        analyzeGraph.invoke(
+          { documentId: documentId },
+          { callbacks: [callTracker] }
+        ),
+        timeoutWatchdog
+      ]);
     } catch (graphError: any) {
       console.error("LangGraph Execution Failed:", graphError);
       return NextResponse.json({ error: graphError.message || "LangGraph execution failed." }, { status: 500 });

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function verifierNode(state: typeof GraphState.State) {
   console.log("[VerifierNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0, risksCount: state.risks?.length || 0 }));
@@ -51,7 +50,6 @@ export async function verifierNode(state: typeof GraphState.State) {
   CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
 
   try {
-    await sleep(3000); // Throttle to prevent Groq TPM burst limits
     const response = await withRetry(() => structuredLlm.invoke(prompt));
     console.log(`[VerifierNode] Successfully finished. Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
 
