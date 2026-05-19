@@ -1,10 +1,12 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function advisorNode(state: typeof GraphState.State) {
-  console.log("[AdvisorNode] --- NODE ENTRY ---");
+  console.log("[AdvisorNode] Started. Input data:", JSON.stringify({ risksCount: state.risks?.length || 0 }));
 
   const { risks } = state;
 
@@ -20,9 +22,10 @@ export async function advisorNode(state: typeof GraphState.State) {
 
   console.log(`[AdvisorNode] Inputs - Received ${risks.length} risks from Red Team.`);
 
-  const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash",
-    temperature: 0,
+  const llm = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama-3.1-8b-instant", // Updated model ID
+    temperature: 0, 
   });
 
   const schema = z.object({
@@ -36,7 +39,7 @@ export async function advisorNode(state: typeof GraphState.State) {
     overallVerdict: z.string().describe("A single brutal paragraph summarizing whether to sign, negotiate, or run.")
   });
 
-  const structuredLlm = llm.withStructuredOutput(schema);
+  const structuredLlm = llm.withStructuredOutput(schema, { name: "extract" });
 
   const risksText = JSON.stringify(risks, null, 2);
 
@@ -51,20 +54,23 @@ For each risk, provide:
 1. "trap": One punchy sentence summarizing the trap.
 2. "harshReality": 2-3 sentences of what actually happens in the real world if triggered.
 3. "advice": Open-ended, non-legal-advice guidance on what to do.
-Finally, provide an "overallVerdict" summarizing if they should sign, negotiate, or run.`;
+Finally, provide an "overallVerdict" summarizing if they should sign, negotiate, or run.
+
+CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
 
   console.log(`[AdvisorNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
   try {
+    await sleep(3000); // Throttle to prevent Groq TPM burst limits
     const response = await withRetry(() => structuredLlm.invoke(prompt));
     console.log("[AdvisorNode] Zod validation passed!");
-    console.log(`[AdvisorNode] Final structured output writing to state: \n${JSON.stringify(response, null, 2).substring(0, 500)}...`);
+    console.log(`[AdvisorNode] Successfully finished. Final structured output writing to state: \n${JSON.stringify(response, null, 2).substring(0, 500)}...`);
 
     return {
       finalReport: response
     };
   } catch (error: any) {
-    console.error("[AdvisorNode] Zod validation or execution failed:", error.message || error);
+    console.error("[AdvisorNode] CRITICAL ERROR:", error.message || error);
     return { 
       finalReport: {
         advisorReport: [],

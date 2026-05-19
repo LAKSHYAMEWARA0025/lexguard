@@ -3,7 +3,7 @@ import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { GraphState } from '../state';
 
 export async function retrieverNode(state: typeof GraphState.State) {
-  console.log("[RetrieverNode] --- NODE ENTRY ---");
+  console.log("[RetrieverNode] Started. Input data:", JSON.stringify({ documentId: state.documentId, queriesCount: state.queries?.length || 0 }));
 
   const { documentId, queries } = state;
 
@@ -38,7 +38,7 @@ export async function retrieverNode(state: typeof GraphState.State) {
         const { data, error } = await supabase.rpc('match_document_chunks', {
           query_embedding: embedding,
           match_threshold: 0.5,
-          match_count: 8,
+          match_count: 5,
           filter_document_id: documentId,
         });
 
@@ -64,12 +64,12 @@ export async function retrieverNode(state: typeof GraphState.State) {
 
     const deduplicatedArray = Array.from(deduplicatedChunksMap.values());
 
-    console.log(`[RetrieverNode] Final structured output writing to state: ${deduplicatedArray.length} unique chunks retrieved.`);
+    console.log(`[RetrieverNode] Successfully finished. Final structured output writing to state: ${deduplicatedArray.length} unique chunks retrieved.`);
 
     // Return the updated state
     return { retrievedChunks: deduplicatedArray };
   } catch (error: any) {
-    console.error("[RetrieverNode] Execution failed:", error.message || error);
+    console.error("[RetrieverNode] CRITICAL ERROR:", error.message || error);
     return { retrievedChunks: [] };
   }
 }

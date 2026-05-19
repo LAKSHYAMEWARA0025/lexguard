@@ -1,10 +1,12 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function verifierNode(state: typeof GraphState.State) {
-  console.log("--- [VerifierNode] INITIATED ---");
+  console.log("[VerifierNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0, risksCount: state.risks?.length || 0 }));
 
   const { retrievedChunks, risks } = state;
 
@@ -13,9 +15,10 @@ export async function verifierNode(state: typeof GraphState.State) {
     return { risks: [] };
   }
 
-  const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash",
-    temperature: 0,
+  const llm = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama-3.1-8b-instant", // Updated model ID
+    temperature: 0, 
   });
 
   // We mirror the Red Team's risk schema to seamlessly overwrite the state
@@ -28,7 +31,7 @@ export async function verifierNode(state: typeof GraphState.State) {
     })).describe("The final, filtered list of risks that are 100% verified against the source text.")
   });
 
-  const structuredLlm = llm.withStructuredOutput(schema);
+  const structuredLlm = llm.withStructuredOutput(schema, { name: "extract" });
 
   const chunkContext = retrievedChunks.map(c => c.content).join("\n\n---\n\n");
   const risksToVerify = JSON.stringify(risks, null, 2);
@@ -44,16 +47,19 @@ export async function verifierNode(state: typeof GraphState.State) {
   1. Cross-reference every single flagged risk against the source text.
   2. If a risk is NOT explicitly supported by the source text, DELETE IT completely. Do not guess or assume.
   3. If a risk IS supported, keep it. You must rewrite the 'clause' to match the exact wording in the text, and tone down any exaggerated claims in the 'issue' description.
-  4. Return ONLY the fully verified risks. If none are valid, return an empty array.`;
+  4. Return ONLY the fully verified risks. If none are valid, return an empty array.
+  
+  CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
 
   try {
+    await sleep(3000); // Throttle to prevent Groq TPM burst limits
     const response = await withRetry(() => structuredLlm.invoke(prompt));
-    console.log(`[VerifierNode] Success: Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
+    console.log(`[VerifierNode] Successfully finished. Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
     
     // Overwrite the unverified risks with the strictly verified ones
     return { risks: response.verifiedRisks }; 
-  } catch (error) {
-    console.error("[VerifierNode] Validation parsing failed:", error);
+  } catch (error: any) {
+    console.error("[VerifierNode] CRITICAL ERROR:", error.message || error);
     // If parsing fails, return original risks so pipeline doesn't crash, but log the failure
     return { risks };
   }

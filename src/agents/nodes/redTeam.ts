@@ -1,10 +1,12 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq";
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function redTeam(state: typeof GraphState.State) {
-  console.log("[RedTeamNode] --- NODE ENTRY ---");
+  console.log("[RedTeamNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0 }));
 
   const { retrievedChunks } = state;
 
@@ -15,9 +17,10 @@ export async function redTeam(state: typeof GraphState.State) {
   
   console.log(`[RedTeamNode] Inputs - Received ${retrievedChunks.length} retrieved chunks.`);
 
-  const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash",
-    temperature: 0, // Deterministic, focused output
+  const llm = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama-3.1-8b-instant", // Updated model ID
+    temperature: 0, 
   });
 
   const schema = z.object({
@@ -29,7 +32,7 @@ export async function redTeam(state: typeof GraphState.State) {
     })).describe("List of identified risks, liabilities, and traps in the contract.")
   });
 
-  const structuredLlm = llm.withStructuredOutput(schema);
+  const structuredLlm = llm.withStructuredOutput(schema, { name: "extract" });
 
   const contextText = retrievedChunks.map(chunk => chunk.content).join("\n\n---\n\n");
 
@@ -49,20 +52,23 @@ Do not be polite. Be precise and merciless. Return only the structured JSON of t
 
 CONTRACT EXCERPTS:
 ${contextText}
+
+CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.
 `;
 
   console.log(`[RedTeamNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
   try {
+    await sleep(3000); // Throttle to prevent Groq TPM burst limits
     const response = await withRetry(() => structuredLlm.invoke(prompt));
     console.log("[RedTeamNode] Zod validation passed!");
-    console.log(`[RedTeamNode] Final structured output writing to state: ${response?.risks?.length || 0} risks identified.`);
+    console.log(`[RedTeamNode] Successfully finished. Final structured output writing to state: ${response?.risks?.length || 0} risks identified.`);
 
     return {
       risks: response?.risks || [],
     };
   } catch (error: any) {
-    console.error("[RedTeamNode] Zod validation or execution failed:", error.message || error);
+    console.error("[RedTeamNode] CRITICAL ERROR:", error.message || error);
     return { risks: [] };
   }
 }

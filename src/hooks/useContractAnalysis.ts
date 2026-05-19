@@ -10,6 +10,7 @@ export function useContractAnalysis() {
   const [errorMessage, setErrorMessage] = useState("");
   const [report, setReport] = useState<FinalReport | null>(null);
   const [logIndex, setLogIndex] = useState(0);
+  const [apiCallCount, setApiCallCount] = useState<number>(0);
 
   useEffect(() => {
     if (status === "analyzing") {
@@ -35,9 +36,14 @@ export function useContractAnalysis() {
       const analyzeRes = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentId: ingestData.documentId }) });
       const analyzeData = await analyzeRes.json();
       if (!analyzeRes.ok) throw new Error(analyzeData.error || "Graph analysis failed.");
-      setReport(analyzeData.finalReport); setStatus("complete");
+      
+      setReport(analyzeData.finalReport);
+      if (analyzeData.apiCallCount) setApiCallCount(analyzeData.apiCallCount);
+      setStatus("complete");
     } catch (err: any) {
-      console.error(err); setErrorMessage(err.message || "Analysis failed."); setStatus("error");
+      console.error(err);
+      setErrorMessage(err.message || "Analysis failed.");
+      setStatus("error");
     }
   };
 
@@ -46,10 +52,11 @@ export function useContractAnalysis() {
     setFile(null);
     setReport(null);
     setErrorMessage("");
+    setApiCallCount(0);
   };
 
   return {
-    state: { file, status, errorMessage, report, logIndex },
-    actions: { handleFileDrop, handleFileChange, handleAnalyze, setStatus, setFile, setReport, reset, setErrorMessage }
+    state: { file, status, errorMessage, report, logIndex, apiCallCount },
+    actions: { handleFileDrop, handleFileChange, handleAnalyze, setStatus, setFile, setReport, reset, setErrorMessage, setApiCallCount }
   };
 }

@@ -1,4 +1,5 @@
 import { RotateCcw } from "lucide-react";
+import { useEffect } from "react";
 import { FinalReport, Severity } from "../hooks/useContractAnalysis";
 
 const countSev = (r: FinalReport) => {
@@ -11,14 +12,21 @@ interface SystemConsoleProps {
   report: FinalReport;
   file: File | null;
   onReset: () => void;
+  apiCallCount?: number;
 }
 
-export default function SystemConsole({ report, file, onReset }: SystemConsoleProps) {
+export default function SystemConsole({ report, file, onReset, apiCallCount }: SystemConsoleProps) {
   const counts = countSev(report);
   const total = report.advisorReport?.length ?? 0;
 
+  useEffect(() => {
+    if (apiCallCount && apiCallCount > 0) {
+      console.log(`Total API calls made: ${apiCallCount}`);
+    }
+  }, [apiCallCount]);
+
   return (
-    <aside className="flex-shrink-0 w-full md:w-64 lg:w-72 border-b md:border-b-0 md:border-r border-white/[0.06] bg-[#0a0a0a] p-5 flex flex-col gap-5 overflow-y-auto md:overflow-hidden">
+    <aside className="flex-shrink-0 w-full md:w-64 lg:w-72 border-b md:border-b-0 md:border-r border-white/[0.06] bg-[#0a0a0a] p-5 flex flex-col gap-5 overflow-y-auto">
 
       {/* Risk score */}
       <div className="flex flex-col items-center py-4">
@@ -55,6 +63,16 @@ export default function SystemConsole({ report, file, onReset }: SystemConsolePr
         <p className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1.5">Verdict</p>
         <p className="text-[11px] text-neutral-500 leading-relaxed">{report.overallVerdict}</p>
       </div>
+
+      {/* API Stats */}
+      {apiCallCount && apiCallCount > 0 ? (
+        <div className="px-3 py-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+          <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <span>⚡</span> API Activity
+          </p>
+          <p className="text-[11px] text-neutral-300">{apiCallCount} Executed Calls</p>
+        </div>
+      ) : null}
 
       <div className="flex-1 hidden md:block" />
 

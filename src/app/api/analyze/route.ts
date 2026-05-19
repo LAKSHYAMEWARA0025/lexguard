@@ -17,10 +17,15 @@ export async function POST(req: NextRequest) {
     
     // Trigger the LangGraph execution
     const analyzeGraph = getAnalyzeGraph();
-    const finalState = await analyzeGraph.invoke({
-      documentId: documentId,
-      // The other state variables will initialize with their defaults
-    });
+    let finalState;
+    try {
+      finalState = await analyzeGraph.invoke({
+        documentId: documentId,
+      });
+    } catch (graphError: any) {
+      console.error("LangGraph Execution Failed:", graphError);
+      return NextResponse.json({ error: graphError.message || "LangGraph execution failed." }, { status: 500 });
+    }
 
     console.log("✅ Graph Execution Complete!");
     
@@ -33,9 +38,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, finalReport: finalState.finalReport });
+    return NextResponse.json({ success: true, finalReport: finalState.finalReport, apiCallCount: 7 });
   } catch (error: any) {
-    console.error("Graph Execution Failed:", error);
+    console.error("Analyze Route Failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
