@@ -71,14 +71,20 @@ export function useContractAnalysis() {
       
       let finalReportData = null;
 
+      let buffer = "";
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         
-        const chunkStr = decoder.decode(value, { stream: true });
-        const lines = chunkStr.split('\n').filter(Boolean);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        
+        // The last element might be an incomplete JSON string, keep it in the buffer
+        buffer = lines.pop() || "";
         
         for (const line of lines) {
+          if (!line.trim()) continue;
           try {
             const chunkData = JSON.parse(line);
             
@@ -99,7 +105,7 @@ export function useContractAnalysis() {
                finalReportData = chunkData.finalReport;
             }
           } catch (e) {
-            console.error("Failed to parse stream chunk:", line);
+            console.error("Failed to parse buffered stream line:", line);
           }
         }
       }

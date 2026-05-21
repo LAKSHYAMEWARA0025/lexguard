@@ -15,7 +15,10 @@ export interface FinalReport {
 
 export const GraphState = Annotation.Root({
   documentId: Annotation<string>(),
-  documentContext: Annotation<string>(), // NEW: E.g., "This is a SaaS Master Subscription Agreement between a software vendor and an enterprise client."
+  documentContext: Annotation<string>({
+    reducer: (curr, next) => next,
+    default: () => "",
+  }),
   queries: Annotation<string[]>({
     reducer: (curr, next) => next, // Overwrite with new queries
     default: () => [],

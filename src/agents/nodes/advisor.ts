@@ -23,7 +23,7 @@ export async function advisorNode(state: typeof GraphState.State) {
   console.log(`[AdvisorNode] Inputs - Received ${risks.length} risks from Red Team.`);
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-flash-latest", // Lightning fast, 1M TPM free limit
+    model: "gemini-2.5-flash", // Lightning fast, 1M TPM free limit
     temperature: 0,
   });
 

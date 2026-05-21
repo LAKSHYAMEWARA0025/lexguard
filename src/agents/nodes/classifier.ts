@@ -44,8 +44,7 @@ export async function classifierNode(state: typeof GraphState.State) {
   });
 
   const structuredLlm = llm.withStructuredOutput(schema, { name: "extract" });
-  const prompt = `Analyze the following introductory text from a legal document. 
-  Determine exactly what type of contract this is and who the primary parties are.
+  const prompt = `You are a senior legal analyst. Read the following excerpt from the beginning of a document. Ignore any random watermarks, page numbers, or random capitalized words (like 'HARD', 'DRAFT', etc.) at the very top. Identify the TRUE nature of this contract. What kind of agreement is this (e.g., SaaS Agreement, NDA, Employment Contract) and who are the primary parties? Keep it to one clear sentence.
   
   Document Intro:
   "${firstChunk[0].content}"

@@ -117,6 +117,7 @@ export default function Dropzone({
               </button>
             </div>
           )}
+          <p className="text-[10px] text-neutral-600 mt-2 text-center">AI can make mistakes, check yourself once.</p>
         </div>
       </div>
     </div>

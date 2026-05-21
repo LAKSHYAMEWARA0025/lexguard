@@ -7,7 +7,7 @@ import { withRetry } from "../../lib/withRetry";
 export async function verifierNode(state: typeof GraphState.State) {
   console.log("[VerifierNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0, risksCount: state.risks?.length || 0 }));
 
-  const { retrievedChunks, risks } = state;
+  const { retrievedChunks, risks, documentContext } = state;
 
   if (!risks || risks.length === 0) {
     console.log("[VerifierNode] No risks to verify. Passing state forward.");
@@ -38,6 +38,8 @@ export async function verifierNode(state: typeof GraphState.State) {
   An aggressive "Red Team" AI has flagged the following potential risks in a contract:
   ${risksToVerify}
 
+  You are analyzing a document identified as: ${documentContext || "Standard legal contract"}. Tailor your verification specifically to the vulnerabilities common in this exact type of agreement.
+
   Here is the actual, raw source text of the contract:
   ${chunkContext}
 
@@ -52,7 +54,7 @@ export async function verifierNode(state: typeof GraphState.State) {
   CRITICAL SPEED CONSTRAINT: You must be extremely concise. Limit your 'reasoning' or 'explanation' fields to a maximum of 2 short sentences per risk. Do not write lengthy paragraphs. Generate your JSON output as fast as possible.`;
 
   try {
-    const response = await withRetry(() => structuredLlm.invoke(prompt, { signal: AbortSignal.timeout(20000) }));
+    const response = await withRetry(() => structuredLlm.invoke(prompt));
     console.log(`[VerifierNode] Successfully finished. Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
 
     // Overwrite the unverified risks with the strictly verified ones

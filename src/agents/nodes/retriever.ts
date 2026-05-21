@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
-import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
+import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { GraphState } from '../state';
+import { z } from "zod";
 
 export async function retrieverNode(state: typeof GraphState.State) {
   console.log("[RetrieverNode] Started. Input data:", JSON.stringify({ documentId: state.documentId, queriesCount: state.queries?.length || 0 }));
@@ -62,12 +63,48 @@ export async function retrieverNode(state: typeof GraphState.State) {
       }
     });
 
-    const deduplicatedArray = Array.from(deduplicatedChunksMap.values());
+    let finalArray = Array.from(deduplicatedChunksMap.values());
 
-    console.log(`[RetrieverNode] Successfully finished. Final structured output writing to state: ${deduplicatedArray.length} unique chunks retrieved.`);
+    if (finalArray.length > 15) {
+      console.log(`[RetrieverNode] Retrieved ${finalArray.length} chunks. Invoking Reranker...`);
+      
+      const llm = new ChatGoogleGenerativeAI({
+        model: "gemini-2.5-flash",
+        temperature: 0,
+      });
+
+      const schema = z.object({
+        keepIds: z.array(z.string()).describe("Array of string IDs of the chunks to keep."),
+      });
+      
+      const structuredLlm = llm.withStructuredOutput(schema, { name: "rerank" });
+      
+      const excerptsText = finalArray.map((c: any) => `ID: ${c.id}\nContent: ${c.content}`).join("\n\n---\n\n");
+      const queriesText = queries.join(", ");
+      
+      const prompt = `You are a legal triage agent. Review these document excerpts against our search queries: [${queriesText}]. Filter out standard boilerplate. Return a JSON array containing ONLY the IDs of the top 15 most potentially dangerous, exploitative, or asymmetric chunks. Prioritize anything related to fees, IP loss, liability shields, or termination traps.
+      
+      EXCERPTS:
+      ${excerptsText}
+      
+      CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
+      
+      try {
+        const response = await structuredLlm.invoke(prompt);
+        console.log(`[RetrieverNode] Reranker returned ${response?.keepIds?.length || 0} IDs to keep.`);
+        if (response && response.keepIds) {
+          const keepSet = new Set(response.keepIds.map(String));
+          finalArray = finalArray.filter((c: any) => keepSet.has(String(c.id)));
+        }
+      } catch (err: any) {
+        console.error("[RetrieverNode] Reranker failed, falling back to all retrieved chunks.", err.message || err);
+      }
+    }
+
+    console.log(`[RetrieverNode] Successfully finished. Final structured output writing to state: ${finalArray.length} unique chunks retrieved.`);
 
     // Return the updated state
-    return { retrievedChunks: deduplicatedArray };
+    return { retrievedChunks: finalArray };
   } catch (error: any) {
     console.error("[RetrieverNode] CRITICAL ERROR:", error.message || error);
     return { retrievedChunks: [] };

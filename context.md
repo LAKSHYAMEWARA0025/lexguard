@@ -32,5 +32,7 @@ Building LEXGUARD: an adversarial, multi-agent AI contract intelligence platform
 - **Tool-Calling Fix & Strict Formatting:** Fortified all LLM nodes by enforcing `{ name: "extract" }` during `.withStructuredOutput()` initialization and explicitly instructing the model to reject markdown wrapping and `<function=extract>` tag leaks.
 - **Dynamic API Tracing:** Refactored `/api/analyze/route.ts` to utilize LangChain `callbacks` (`handleLLMStart`, `handleChatModelStart`), injecting an exact, dynamic `apiCallCount` into the frontend JSON payload rather than relying on hardcoded estimates.
 - **Frontend Error Surface:** Hardened `useContractAnalysis` with a `processResponse` wrapper that safely catches and surfaces raw `text/html` server crashes (500s) directly to the Dropzone error banner, preventing silent UI failures and JSON parse syntax errors.
+- **UI Disclaimer:** Added a small disclaimer text under the file upload component reminding users that AI can make mistakes and they should verify results.
+
 ## Core System Instruction
 *Note to AI Agent:* This `context.md` file must be updated at the end of every single task to maintain a perfect, running memory of our architecture, database schemas, and state.

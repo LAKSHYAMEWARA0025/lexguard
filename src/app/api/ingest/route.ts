@@ -93,13 +93,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Could not extract readable text from this document. Ensure it is not a scanned image." }, { status: 400 });
     }
 
-    // 3. Split into chunks (~2000 size, ~500 overlap)
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 2000,
-      chunkOverlap: 500,
-    });
+    // 3. Split into semantic chunks by isolating distinct paragraphs and clauses
+    const rawChunks = fullText.split('\n\n');
+    const chunks = rawChunks
+      .map(chunk => chunk.trim())
+      .filter(chunk => chunk.length >= 10)
+      .map(chunk => ({ pageContent: chunk }));
     
-    const chunks = await splitter.createDocuments([fullText]);
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
     console.log('Chunking Success, Total Chunks:', chunks.length);
 
@@ -133,7 +133,8 @@ export async function POST(req: NextRequest) {
       const chunk = chunks[i];
       let vector;
       try {
-        vector = await embeddingsModel.embedQuery(chunk.pageContent);
+        const contextualizedText = `[LexGuard Contract Clause] \n\n ${chunk.pageContent}`;
+        vector = await embeddingsModel.embedQuery(contextualizedText);
         // 3. Pre-Insert Database Check
         if (!vector || vector.length === 0) throw new Error("Google API returned an empty vector.");
         

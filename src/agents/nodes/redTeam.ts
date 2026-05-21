@@ -7,7 +7,7 @@ import { withRetry } from "../../lib/withRetry";
 export async function redTeam(state: typeof GraphState.State) {
   console.log("[RedTeamNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0 }));
 
-  const { retrievedChunks } = state;
+  const { retrievedChunks, documentContext } = state;
 
   if (!retrievedChunks || retrievedChunks.length === 0) {
     console.warn("[RedTeamNode] No chunks retrieved. Skipping analysis.");
@@ -36,6 +36,8 @@ export async function redTeam(state: typeof GraphState.State) {
 
   const prompt = `You are a ruthless, highly aggressive "vulture lawyer" acting as an adversarial AI agent.
 Your sole job is to completely destroy this contract. You are not here to be fair. You are here to find every possible exploit, trap, and liability.
+
+You are analyzing a document identified as: ${documentContext || "Standard legal contract"}. Tailor your legal attacks to vulnerabilities common in this type of agreement, BUT you must not ignore universal contract traps. Aggressively flag one-sided termination, forced arbitration, liability shields, sneaky renewals, or blatantly illegal penalties, even if they seem 'standard'.
 
 Carefully analyze the following contract excerpts and aggressively flag:
 1. Hidden fees or automatic renewal traps.
