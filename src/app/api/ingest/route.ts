@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
@@ -11,12 +12,16 @@ import * as mammoth from "mammoth";
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('1. File upload request received');
     const formData = await req.formData();
+    console.log('1.1 Form data parsed');
     const file = formData.get('file') as File | null;
     
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
+
+    console.log(`1.2 File received: ${file.name} (${file.size} bytes)`);
 
     // Vercel Free Tier Limit is 4.5MB. Prevent memory overflow crashes.
     const MAX_FILE_SIZE = 4.5 * 1024 * 1024; 
@@ -28,8 +33,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Convert file to buffer
+    console.log('2. Reading file into memory');
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    console.log('2. File buffered successfully');
 
     // Add quiet connectivity check
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
@@ -43,6 +50,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 1. Upload to Cloudinary via stream
+    console.log('3. Starting Cloudinary upload');
     const uploadResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { resource_type: 'auto', folder: 'lexguard_docs' },
@@ -53,11 +61,13 @@ export async function POST(req: NextRequest) {
       );
       uploadStream.end(buffer);
     }) as any;
+    console.log('3. Cloudinary upload complete');
 
     const fileUrl = uploadResult.secure_url;
     console.log('Cloudinary Upload Success:', fileUrl);
 
     // 2. Extract text from file (PDF, DOCX, TXT)
+    console.log('4. Starting text extraction');
     const mimeType = file.type;
     let fullText = "";
 
@@ -87,6 +97,8 @@ export async function POST(req: NextRequest) {
     else {
       return NextResponse.json({ error: "Unsupported file type. Please upload a PDF, DOCX, or TXT file." }, { status: 400 });
     }
+
+    console.log('4. Text extraction complete');
     
     if (!fullText || fullText.trim().length < 10) {
       console.error("[INGEST ERROR] Could not extract readable text. Length:", fullText ? fullText.length : 0);
@@ -94,6 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Split into semantic chunks by isolating distinct paragraphs and clauses
+    console.log('5. Starting chunking');
     const rawChunks = fullText.split('\n\n');
     const chunks = rawChunks
       .map(chunk => chunk.trim())
@@ -102,8 +115,10 @@ export async function POST(req: NextRequest) {
     
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
     console.log('Chunking Success, Total Chunks:', chunks.length);
+    console.log(`5. Chunking complete: ${chunks.length} chunks ready`);
 
     // Insert document first
+    console.log('6. Saving document record to Supabase');
     const { data: docData, error: docError } = await supabase
       .from('documents')
       .insert({
@@ -118,33 +133,51 @@ export async function POST(req: NextRequest) {
     }
 
     const documentId = docData.id;
+    console.log('6. Document record saved to Supabase:', documentId);
 
     // 1. Initialize Google Embeddings
+    console.log('7. Initializing embedding model');
     const embeddingsModel = new GoogleGenerativeAIEmbeddings({
       model: "models/gemini-embedding-001",
       apiKey: process.env.GOOGLE_API_KEY,
     });
+    console.log('7. Embedding model ready');
 
-    console.log('Generating embeddings for', chunks.length, 'chunks...');
+    console.log(`8. Generating embeddings for ${chunks.length} chunks in batches of 5`);
     
     // 2. Generate Embeddings & Format for Supabase
     const chunksToInsert = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      let vector;
+    const batchSize = 5;
+    for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
+      const batchNumber = Math.floor(batchStart / batchSize) + 1;
+      const batch = chunks.slice(batchStart, batchStart + batchSize);
+      console.log(`8.${batchNumber} Starting embedding batch ${batchNumber} with ${batch.length} chunks`);
+
       try {
-        const contextualizedText = `[LexGuard Contract Clause] \n\n ${chunk.pageContent}`;
-        vector = await embeddingsModel.embedQuery(contextualizedText);
-        // 3. Pre-Insert Database Check
-        if (!vector || vector.length === 0) throw new Error("Google API returned an empty vector.");
-        
-        chunksToInsert.push({
-          document_id: documentId,
-          content: chunk.pageContent,
-          embedding: vector
-        });
+        const batchVectors = await Promise.all(
+          batch.map(async (chunk, batchIndex) => {
+            const chunkIndex = batchStart + batchIndex;
+            const contextualizedText = `[LexGuard Contract Clause] \n\n ${chunk.pageContent}`;
+            console.log(`8.${batchNumber}.${batchIndex + 1} Embedding chunk ${chunkIndex + 1}`);
+            const vector = await embeddingsModel.embedQuery(contextualizedText);
+
+            if (!vector || vector.length === 0) {
+              throw new Error(`Google API returned an empty vector for chunk ${chunkIndex + 1}.`);
+            }
+
+            console.log(`8.${batchNumber}.${batchIndex + 1} Embedding complete for chunk ${chunkIndex + 1}`);
+            return {
+              document_id: documentId,
+              content: chunk.pageContent,
+              embedding: vector,
+            };
+          })
+        );
+
+        chunksToInsert.push(...batchVectors);
+        console.log(`8.${batchNumber} Finished embedding batch ${batchNumber}; accumulated vectors: ${chunksToInsert.length}`);
       } catch (error: any) {
-        console.error(`[INGEST ERROR] Failed to generate embedding for chunk ${i}:`, error.message);
+        console.error(`[INGEST ERROR] Failed during embedding batch ${batchNumber}:`, error.message);
         return NextResponse.json({ error: `AI Embedding failed: ${error.message}` }, { status: 500 });
       }
     }
@@ -152,14 +185,26 @@ export async function POST(req: NextRequest) {
     console.log(`Embedding Success! Vectors generated for ${chunksToInsert.length} chunks.`);
 
     // 4. Insert into Supabase
-    const { error: chunksError } = await supabase
+    console.log('9. Saving vector batches to Supabase pgvector');
+    const chunksInsertPromise = supabase
       .from('document_chunks')
       .insert(chunksToInsert);
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Supabase vector insert timed out after 15 seconds.'));
+      }, 15000);
+    });
+
+    const { error: chunksError } = await Promise.race([
+      chunksInsertPromise,
+      timeoutPromise,
+    ]) as { error: any };
 
     if (chunksError) {
       throw new Error(`Failed to insert document chunks: ${chunksError.message}`);
     }
-    console.log('Supabase Insertion Success, Document ID:', documentId);
+    console.log('9. Supabase Insertion Success, Document ID:', documentId);
 
     return NextResponse.json({ 
       success: true, 
