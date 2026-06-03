@@ -24,7 +24,7 @@ export default function Home() {
   } = useDashboardState();
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-[#080808]">
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-[#0a0a0a]">
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -33,26 +33,26 @@ export default function Home() {
         resetWorkspace={resetWorkspace}
       />
 
-      {/* Sleek desktop-only floating toggle trigger sitting on the right edge of the sidebar */}
-      <button
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="hidden md:flex absolute top-1/2 -translate-y-1/2 z-40 items-center justify-center w-5 h-10 rounded-r-lg border border-l-0 border-white/[0.06] hover:border-[#e8530e]/30 bg-[#0a0a0a] text-neutral-500 hover:text-[#e8530e] cursor-pointer shadow-[2px_0_8px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out"
-        style={{ left: isSidebarOpen ? "259px" : "0px" }}
-        title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-      >
-        {isSidebarOpen
-          ? <ChevronLeft size={12} strokeWidth={2.5} />
-          : <ChevronRight size={12} strokeWidth={2.5} />
-        }
-      </button>
+      <main className="flex-1 h-full overflow-y-auto pb-24">
+        {/* Sleek desktop-only floating toggle trigger sitting on the right edge of the sidebar */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="hidden md:flex absolute top-1/2 -translate-y-1/2 z-40 items-center justify-center w-5 h-10 rounded-r-lg border border-l-0 border-white/[0.06] hover:border-[#e8530e]/30 bg-[#0a0a0a] text-neutral-500 hover:text-[#e8530e] cursor-pointer shadow-[2px_0_8px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out"
+          style={{ left: isSidebarOpen ? "259px" : "0px" }}
+          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+        >
+          {isSidebarOpen
+            ? <ChevronLeft size={12} strokeWidth={2.5} />
+            : <ChevronRight size={12} strokeWidth={2.5} />
+          }
+        </button>
 
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         <Hero
           state={state}
           actions={actions}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         />
-      </div>
+      </main>
     </div>
   );
 }

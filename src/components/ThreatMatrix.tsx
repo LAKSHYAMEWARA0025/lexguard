@@ -22,16 +22,16 @@ export default function ThreatMatrix({ report, file }: ThreatMatrixProps) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-5 md:p-6 space-y-3 [&::-webkit-scrollbar]:w-[5px]">
-      <div className="flex items-center justify-between mb-5">
+    <div className="w-full flex-1 min-w-0 overflow-y-auto p-3 md:p-6 space-y-3 [&::-webkit-scrollbar]:w-[5px]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4 md:mb-5">
         <div className="flex items-center gap-3">
           <div className="h-5 w-[3px] rounded-full bg-[#e8530e]" />
           <div>
-            <h2 className="text-sm font-bold text-neutral-200 tracking-tight">Threat Matrix</h2>
-            <p className="text-[10px] text-neutral-600">{total} findings · priority sorted</p>
+            <h2 className="text-sm md:text-base font-bold text-neutral-200 tracking-tight">Threat Matrix</h2>
+            <p className="text-[10px] md:text-xs text-neutral-600">{total} findings · priority sorted</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           <button
             onClick={handleDownload}
             disabled={isDownloading}
@@ -46,13 +46,13 @@ export default function ThreatMatrix({ report, file }: ThreatMatrixProps) {
         </div>
       </div>
 
-      <div id="lexguard-report-container">
+      <div id="lexguard-report-container" className="w-full space-y-3 md:space-y-4">
         {report.advisorReport && report.advisorReport.length > 0 ? (
           report.advisorReport
             .sort((a, b) => severityRank[b.severity] - severityRank[a.severity])
             .map((risk, i) => <RiskCard key={i} risk={risk} index={i} />)
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex flex-col items-center justify-center py-14 md:py-20 text-center">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-4">
               <ShieldCheck size={22} className="text-emerald-500" />
             </div>
@@ -61,7 +61,7 @@ export default function ThreatMatrix({ report, file }: ThreatMatrixProps) {
           </div>
         )}
       </div>
-      <div className="h-8" />
+      <div className="h-6 md:h-8" />
     </div>
   );
 }

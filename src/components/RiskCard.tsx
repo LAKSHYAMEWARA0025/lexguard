@@ -20,13 +20,13 @@ export default function RiskCard({ risk, index }: RiskCardProps) {
   const c = sevCfg(risk.severity);
 
   return (
-    <div className="anim-fade-up relative flex rounded-xl overflow-hidden bg-[#0f0f0f] border border-white/[0.04] hover:border-white/[0.08] transition-all duration-200 group" style={{ animationDelay: `${index * 60}ms` }}>
+    <div className="anim-fade-up relative w-full flex rounded-xl overflow-hidden bg-[#0f0f0f] border border-white/[0.04] hover:border-white/[0.08] transition-all duration-200 group" style={{ animationDelay: `${index * 60}ms` }}>
       {/* Left severity strip */}
       <div className={`w-1 flex-shrink-0 ${c.strip}`} />
 
-      <div className="flex-1 p-5">
+      <div className="flex-1 p-3 md:p-5">
         {/* Header row */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between gap-3 mb-2.5 md:mb-3">
           <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ring-1 ${c.badge}`}>
             <div className={`w-1 h-1 rounded-full ${c.dot}`} />
             {c.tag}
@@ -35,29 +35,29 @@ export default function RiskCard({ risk, index }: RiskCardProps) {
         </div>
 
         {/* Trap */}
-        <p className="text-sm font-semibold text-neutral-100 leading-snug mb-3">{risk.trap}</p>
+        <p className="text-sm md:text-[15px] font-semibold text-neutral-100 leading-snug mb-2.5 md:mb-3 break-words">{risk.trap}</p>
 
         {/* Source clause */}
-        <div className="mb-3 px-3 py-2.5 rounded-lg bg-black/40 border-l-2 border-white/[0.06]">
+        <div className="mb-2.5 md:mb-3 px-3 py-2.5 rounded-lg bg-black/40 border-l-2 border-white/[0.06]">
           <p className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1">Source</p>
-          <p className="text-[11px] text-neutral-500 leading-relaxed font-mono">{risk.clause}</p>
+          <p className="text-[11px] md:text-xs text-neutral-500 leading-relaxed font-mono break-words whitespace-pre-wrap">{risk.clause}</p>
         </div>
 
         {/* Bottom grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div className="px-3 py-2.5 rounded-lg bg-red-950/15 border border-red-900/10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-2.5">
+          <div className="px-3 py-2.5 rounded-lg bg-red-950/15 border border-red-900/10 w-full">
             <div className="flex items-center gap-1.5 mb-1.5">
               <Skull size={10} className="text-red-500/50" />
               <p className="text-[10px] font-semibold text-red-500/50 uppercase tracking-wider">Harsh Reality</p>
             </div>
-            <p className="text-[11px] text-neutral-500 leading-relaxed">{risk.harshReality}</p>
+            <p className="text-[11px] md:text-xs text-neutral-500 leading-relaxed break-words">{risk.harshReality}</p>
           </div>
-          <div className="px-3 py-2.5 rounded-lg bg-[#e8530e]/[0.04] border border-[#e8530e]/10">
+          <div className="px-3 py-2.5 rounded-lg bg-[#e8530e]/[0.04] border border-[#e8530e]/10 w-full">
             <div className="flex items-center gap-1.5 mb-1.5">
               <Lightbulb size={10} className="text-[#e8530e]/60" />
               <p className="text-[10px] font-semibold text-[#e8530e]/50 uppercase tracking-wider">Counter-Measure</p>
             </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">{risk.advice}</p>
+            <p className="text-[11px] md:text-xs text-neutral-400 leading-relaxed break-words">{risk.advice}</p>
           </div>
         </div>
       </div>

@@ -34,7 +34,7 @@ interface HeroProps {
 
 export default function Hero({ state, actions, onToggleSidebar }: HeroProps) {
   return (
-    <main className="h-screen w-full overflow-hidden bg-[#080808] text-neutral-200 flex flex-col min-w-0">
+    <div className="flex flex-col w-full h-auto min-h-full gap-8 bg-[#080808] text-neutral-200 min-w-0">
       {/* ── Navbar ── */}
       <nav className="relative z-20 flex-shrink-0 flex items-center justify-between px-6 h-14 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
@@ -78,11 +78,11 @@ export default function Hero({ state, actions, onToggleSidebar }: HeroProps) {
 
       {/* ══════════════════════════ STATE 3: RESULTS ══════════════════════════ */}
       {state.status === "complete" && state.report && (
-        <div className="relative z-10 flex-1 flex flex-col md:flex-row overflow-hidden animate-fade-in">
+        <div className="relative z-10 flex flex-col gap-6 md:gap-8 animate-fade-in">
           <SystemConsole report={state.report} file={state.file} onReset={actions.reset} apiCallCount={state.apiCallCount} />
           <ThreatMatrix report={state.report} file={state.file} />
         </div>
       )}
-    </main>
+    </div>
   );
 }

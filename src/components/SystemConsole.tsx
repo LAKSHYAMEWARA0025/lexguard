@@ -26,10 +26,10 @@ export default function SystemConsole({ report, file, onReset, apiCallCount }: S
   }, [apiCallCount]);
 
   return (
-    <aside className="flex-shrink-0 w-full md:w-64 lg:w-72 border-b md:border-b-0 md:border-r border-white/[0.06] bg-[#0a0a0a] p-5 flex flex-col gap-5 overflow-y-auto">
+    <aside className="w-full border-b border-white/[0.06] bg-[#0a0a0a] p-3 md:p-5 flex flex-col gap-4 md:gap-5 overflow-y-auto">
 
       {/* Risk score */}
-      <div className="flex flex-col items-center py-4">
+      <div className="flex flex-col items-center py-3 md:py-4">
         <div className="w-20 h-20 rounded-2xl bg-[#e8530e]/10 border border-[#e8530e]/25 flex items-center justify-center glow-pulse">
           <span className="text-3xl font-black text-[#e8530e]">{total}</span>
         </div>
@@ -53,20 +53,20 @@ export default function SystemConsole({ report, file, onReset, apiCallCount }: S
       </div>
 
       {/* File info */}
-      <div className="px-3 py-2.5 rounded-lg bg-white/[0.02] border-l-2 border-[#e8530e]/30">
+      <div className="w-full px-3 py-2.5 rounded-lg bg-white/[0.02] border-l-2 border-[#e8530e]/30">
         <p className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1">Document</p>
         <p className="text-xs text-neutral-400 truncate">{file?.name ?? "Contract"}</p>
       </div>
 
       {/* Verdict */}
-      <div className="px-3 py-2.5 rounded-lg bg-white/[0.02]">
+      <div className="w-full px-3 py-2.5 rounded-lg bg-white/[0.02]">
         <p className="text-[10px] text-neutral-600 uppercase tracking-wider mb-1.5">Verdict</p>
-        <p className="text-[11px] text-neutral-500 leading-relaxed">{report.overallVerdict}</p>
+        <p className="w-full text-[11px] text-neutral-500 leading-relaxed break-words whitespace-pre-wrap">{report.overallVerdict}</p>
       </div>
 
       {/* API Stats */}
       {apiCallCount && apiCallCount > 0 ? (
-        <div className="px-3 py-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+        <div className="w-full px-3 py-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
           <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <span>⚡</span> API Activity
           </p>
@@ -74,7 +74,7 @@ export default function SystemConsole({ report, file, onReset, apiCallCount }: S
         </div>
       ) : null}
 
-      <div className="flex-1 hidden md:block" />
+      <div className="h-2 md:h-4" />
 
       <button
         onClick={onReset}
