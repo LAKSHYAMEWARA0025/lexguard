@@ -54,8 +54,12 @@ export async function POST(req: NextRequest) {
             // Extract final report
             if (chunk.advisorNode && chunk.advisorNode.finalReport) {
                finalReportJson = chunk.advisorNode.finalReport;
+            } else if (chunk.advisorNode && chunk.advisorNode.advisorReport) {
+               finalReportJson = chunk.advisorNode;
             } else if (chunk.finalReport) {
                finalReportJson = chunk.finalReport;
+            } else if (chunk.advisorReport) {
+               finalReportJson = chunk;
             } else if (chunk.error) {
               writeStreamError(controller, new Error(String(chunk.error)));
               return;

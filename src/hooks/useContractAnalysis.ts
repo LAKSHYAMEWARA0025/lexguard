@@ -164,12 +164,16 @@ export function useContractAnalysis() {
               setPipelineStatus("Generating Final Report...");
               if (chunkData.advisorNode.finalReport) {
                 finalReportData = chunkData.advisorNode.finalReport;
+              } else if (chunkData.advisorNode.advisorReport) {
+                finalReportData = chunkData.advisorNode;
               }
             }
 
             // LangGraph might also return the final state as the last chunk or __end__
             if (chunkData.finalReport) {
               finalReportData = chunkData.finalReport;
+            } else if (chunkData.advisorReport) {
+              finalReportData = chunkData;
             }
           } catch (e) {
             console.error("Failed to parse buffered stream line:", line, e);
