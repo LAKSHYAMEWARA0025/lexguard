@@ -8,15 +8,16 @@ const severityRank = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
 
 interface ThreatMatrixProps {
   report: FinalReport;
+  file?: File | null;
 }
 
-export default function ThreatMatrix({ report }: ThreatMatrixProps) {
+export default function ThreatMatrix({ report, file }: ThreatMatrixProps) {
   const total = report.advisorReport?.length ?? 0;
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
     setIsDownloading(true);
-    await downloadReportAsPDF("lexguard-report-container");
+    await downloadReportAsPDF("lexguard-report-container", file?.name);
     setIsDownloading(false);
   };
 

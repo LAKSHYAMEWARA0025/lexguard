@@ -80,7 +80,7 @@ export default function Hero({ state, actions, onToggleSidebar }: HeroProps) {
       {state.status === "complete" && state.report && (
         <div className="relative z-10 flex-1 flex flex-col md:flex-row overflow-hidden animate-fade-in">
           <SystemConsole report={state.report} file={state.file} onReset={actions.reset} apiCallCount={state.apiCallCount} />
-          <ThreatMatrix report={state.report} />
+          <ThreatMatrix report={state.report} file={state.file} />
         </div>
       )}
     </main>

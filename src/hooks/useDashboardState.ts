@@ -47,6 +47,11 @@ export function useDashboardState() {
     setActiveReportId(null);
   };
 
+  /** Exposed alias to explicitly reset the workspace from UI controls */
+  const resetWorkspace = () => {
+    handleReset();
+  };
+
   return {
     // Analysis state (passed through from useContractAnalysis)
     state,
@@ -57,5 +62,6 @@ export function useDashboardState() {
     setIsSidebarOpen,
     activeReportId,
     handleSelectReport,
+    resetWorkspace,
   };
 }

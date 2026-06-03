@@ -1,7 +1,7 @@
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
-export const downloadReportAsPDF = async (elementId: string, filename: string = 'LexGuard_Threat_Report.pdf') => {
+export const downloadReportAsPDF = async (elementId: string, originalFilename?: string) => {
   const element = document.getElementById(elementId);
   if (!element) {
     console.error("Report container not found");
@@ -35,7 +35,12 @@ export const downloadReportAsPDF = async (elementId: string, filename: string = 
       heightLeft -= pageHeight;
     }
     
-    pdf.save(filename);
+    // Compose filename: prefer provided original filename, else use default
+    const safeName = originalFilename
+      ? `LexGuard_${originalFilename.replace(/[^a-z0-9_.-]/gi, '_')}.pdf`
+      : 'LexGuard_Threat_Report.pdf';
+
+    pdf.save(safeName);
   } catch (error) {
     console.error("Failed to generate PDF:", error);
   }

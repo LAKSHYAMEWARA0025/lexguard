@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { FileText, LogOut, X, History, Key, RefreshCw, ChevronRight } from "lucide-react";
+import { FileText, LogOut, X, History, Key, RefreshCw, ChevronRight, Upload, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Report {
@@ -17,6 +17,7 @@ interface SidebarProps {
   onClose: () => void;
   onSelectReport: (threatMatrix: any, filename: string, reportId: string) => void;
   activeReportId?: string | null;
+  resetWorkspace: () => void;
 }
 
 export default function Sidebar({
@@ -24,6 +25,7 @@ export default function Sidebar({
   onClose,
   onSelectReport,
   activeReportId,
+  resetWorkspace,
 }: SidebarProps) {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,13 +147,37 @@ export default function Sidebar({
               <span className="text-[#e8530e] font-black text-lg tracking-tighter">VAN</span>
               <span className="text-neutral-500 font-light text-lg tracking-tighter">GUARD</span>
             </div>
-            {/* Close button for mobile drawer */}
+            <div className="flex items-center gap-2">
+              {/* Small upload button to navigate to the upload page */}
+              <button
+                onClick={() => router.push("/")}
+                className="hidden md:inline-flex items-center justify-center p-1 rounded-md text-neutral-500 hover:text-white hover:bg-white/5 transition-all"
+                title="Upload New File"
+              >
+                <Upload size={16} />
+              </button>
+              {/* Close button for mobile drawer */}
             <button
               onClick={onClose}
               className="md:hidden flex items-center justify-center p-1 rounded-md text-neutral-500 hover:text-white hover:bg-white/5 transition-all"
               aria-label="Close Sidebar"
             >
               <X size={18} />
+            </button>
+            </div>
+          </div>
+
+          {/* New Analysis Button */}
+          <div className="px-4 mt-4">
+            <button
+              onClick={() => {
+                resetWorkspace && resetWorkspace();
+                onClose();
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#e8530e] text-black font-semibold rounded-lg hover:bg-[#ff6a22] transition-colors shadow-[0_6px_18px_rgba(232,83,14,0.16)]"
+            >
+              <Plus size={14} />
+              <span className="text-sm">New Analysis</span>
             </button>
           </div>
 

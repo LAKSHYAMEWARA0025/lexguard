@@ -20,6 +20,7 @@ export default function Home() {
     setIsSidebarOpen,
     activeReportId,
     handleSelectReport,
+    resetWorkspace,
   } = useDashboardState();
 
   return (
@@ -29,6 +30,7 @@ export default function Home() {
         onClose={() => setIsSidebarOpen(false)}
         onSelectReport={handleSelectReport}
         activeReportId={activeReportId}
+        resetWorkspace={resetWorkspace}
       />
 
       {/* Sleek desktop-only floating toggle trigger sitting on the right edge of the sidebar */}
