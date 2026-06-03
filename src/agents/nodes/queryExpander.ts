@@ -7,7 +7,7 @@ export async function queryExpander(state: typeof GraphState.State) {
   console.log("[QueryExpander] Started. Input data:", JSON.stringify({ documentId: state.documentId, documentContext: state.documentContext }));
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash",
+    model: "gemini-3.5-flash",
     temperature: 0,
   });
 
