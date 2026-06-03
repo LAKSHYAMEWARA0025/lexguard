@@ -51,7 +51,7 @@ function LoginForm() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#111] border border-[#e8530e]/30 shadow-[0_0_30px_rgba(232,83,14,0.15)] mb-6">
           <span className="text-[#e8530e] font-black text-2xl tracking-tighter">V</span>
         </div>
-        <h1 className="text-3xl font-light tracking-tight text-white mb-2">LexGuard</h1>
+        <h1 className="text-3xl font-light tracking-tight text-white mb-2">Vanguard</h1>
         <p className="text-neutral-500 text-sm">
           {isSignUp ? 'Create your new account' : 'Secure access to your workspace'}
         </p>
