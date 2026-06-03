@@ -21,15 +21,57 @@ export async function retrieverNode(state: typeof GraphState.State) {
     apiKey: process.env.GOOGLE_API_KEY,
   });
 
-  console.log(`[RetrieverNode] Generating embeddings for ${queries.length} queries concurrently...`);
+  const EMBEDDING_BATCH_SIZE = 3;
+  const EMBEDDING_TIMEOUT_MS = 5000;
+  const EMBEDDING_DELAY_MS = 200;
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const embedWithTimeout = async (query: string, index: number) => {
+    const embeddingPromise = embeddingsModel.embedQuery(query);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Embedding request timed out after ${EMBEDDING_TIMEOUT_MS}ms for query #${index + 1}`));
+      }, EMBEDDING_TIMEOUT_MS);
+    });
+
+    return Promise.race([embeddingPromise, timeoutPromise]) as Promise<number[]>;
+  };
+
+  console.log(`[RetrieverNode] Generating embeddings for ${queries.length} queries in batches of ${EMBEDDING_BATCH_SIZE}...`);
   
   try {
-    // Concurrently map over the queries array to generate vector embeddings
-    const queryEmbeddings = await Promise.all(
-      queries.map(async (query) => {
-        return embeddingsModel.embedQuery(query);
-      })
-    );
+    const queryEmbeddings: number[][] = [];
+
+    for (let batchStart = 0; batchStart < queries.length; batchStart += EMBEDDING_BATCH_SIZE) {
+      const batch = queries.slice(batchStart, batchStart + EMBEDDING_BATCH_SIZE);
+      const batchIndex = Math.floor(batchStart / EMBEDDING_BATCH_SIZE) + 1;
+      console.log(`[RetrieverNode] Starting embedding batch ${batchIndex} with ${batch.length} queries.`);
+
+      const batchResults = await Promise.allSettled(
+        batch.map(async (query, indexInBatch) => {
+          const queryIndex = batchStart + indexInBatch;
+          const embedding = await embedWithTimeout(query, queryIndex);
+          await sleep(EMBEDDING_DELAY_MS);
+          return embedding;
+        })
+      );
+
+      for (const result of batchResults) {
+        if (result.status === "fulfilled") {
+          queryEmbeddings.push(result.value);
+        } else {
+          console.error("[RetrieverNode] Embedding generation failed:", result.reason?.message || result.reason);
+        }
+      }
+
+      console.log(`[RetrieverNode] Finished embedding batch ${batchIndex}. Successful embeddings so far: ${queryEmbeddings.length}`);
+    }
+
+    if (queryEmbeddings.length === 0) {
+      console.warn("[RetrieverNode] No embeddings were generated successfully. Exiting early.");
+      return { retrievedChunks: [] };
+    }
 
     console.log(`[RetrieverNode] Executing vector search across ${queryEmbeddings.length} query embeddings...`);
     
