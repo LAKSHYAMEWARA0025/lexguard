@@ -191,9 +191,14 @@ export async function POST(req: NextRequest) {
 
     // 4. Insert into Supabase
     console.log('9. Saving vector batches to Supabase pgvector');
+    const sanitizedChunks = chunksToInsert.map(chunk => ({
+      ...chunk,
+      content: chunk.content.replace(/[\u0000]/g, '') // Strips Postgres-breaking null bytes
+    }));
+
     const chunksInsertPromise = supabase
       .from('document_chunks')
-      .insert(chunksToInsert);
+      .insert(sanitizedChunks);
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
