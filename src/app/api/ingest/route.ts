@@ -107,15 +107,62 @@ export async function POST(req: NextRequest) {
 
     // 3. Split into semantic chunks by isolating distinct paragraphs and clauses
     console.log('5. Starting chunking');
-    const rawChunks = fullText.split('\n\n');
-    const chunks = rawChunks
+    const rawChunks = fullText
+      .split('\n\n')
       .map(chunk => chunk.trim())
-      .filter(chunk => chunk.length >= 10)
-      .map(chunk => ({ pageContent: chunk }));
+      .filter(chunk => chunk.length >= 10);
+
+    const mergeSemanticChunks = (
+      chunks: string[],
+      minChars = 500,
+      targetChars = 900,
+      maxChars = 1200
+    ) => {
+      const grouped: string[] = [];
+      let current = '';
+
+      for (const chunk of chunks) {
+        if (!current) {
+          current = chunk;
+          continue;
+        }
+
+        const separator = current.endsWith('\n') ? '' : '\n\n';
+        const candidate = `${current}${separator}${chunk}`;
+
+        if (candidate.length <= targetChars) {
+          current = candidate;
+          continue;
+        }
+
+        if (current.length < minChars && candidate.length <= maxChars) {
+          current = candidate;
+          continue;
+        }
+
+        grouped.push(current);
+        current = chunk;
+      }
+
+      if (current) {
+        const previous = grouped[grouped.length - 1];
+
+        if (previous && current.length < minChars && previous.length + current.length + 2 <= maxChars) {
+          grouped[grouped.length - 1] = `${previous}\n\n${current}`;
+        } else {
+          grouped.push(current);
+        }
+      }
+
+      return grouped;
+    };
+
+    const groupedChunks = mergeSemanticChunks(rawChunks);
+    const chunks = groupedChunks.map(chunk => ({ pageContent: chunk }));
     
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
-    console.log('Chunking Success, Total Chunks:', chunks.length);
-    console.log(`5. Chunking complete: ${chunks.length} chunks ready`);
+    console.log(`Chunking Success, Raw chunks: ${rawChunks.length}, Grouped chunks: ${chunks.length}`);
+    console.log(`5. Chunking complete: ${chunks.length} grouped chunks ready`);
 
     // Insert document first
     console.log('6. Saving document record to Supabase');
@@ -143,11 +190,11 @@ export async function POST(req: NextRequest) {
     });
     console.log('7. Embedding model ready');
 
-    console.log(`8. Generating embeddings for ${chunks.length} chunks in batches of 5`);
+    console.log(`8. Generating embeddings for ${chunks.length} chunks in batches of 12`);
     
     // 2. Generate Embeddings & Format for Supabase
     const chunksToInsert = [];
-    const batchSize = 5;
+    const batchSize = 12;
     for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
       const batchNumber = Math.floor(batchStart / batchSize) + 1;
       const batch = chunks.slice(batchStart, batchStart + batchSize);
