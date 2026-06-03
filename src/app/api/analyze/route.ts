@@ -24,11 +24,19 @@ export async function POST(req: NextRequest) {
     
     // Trigger the LangGraph execution
     const analyzeGraph = getAnalyzeGraph();
-    
+
     const stream = await analyzeGraph.stream({ documentId: documentId });
     const encoder = new TextEncoder();
     // Capture the client's abort signal to halt processing on disconnect
     const clientSignal = req.signal;
+
+    const writeStreamError = (controller: ReadableStreamDefaultController, error: any) => {
+      const errorMessage = error?.message || "Analysis failed.";
+      console.error("LLM Execution Error:", error);
+      controller.enqueue(encoder.encode(JSON.stringify({ error: errorMessage }) + '\n'));
+      controller.close();
+    };
+
     const readable = new ReadableStream({
       async start(controller) {
         let finalReportJson = null;
@@ -48,6 +56,9 @@ export async function POST(req: NextRequest) {
                finalReportJson = chunk.advisorNode.finalReport;
             } else if (chunk.finalReport) {
                finalReportJson = chunk.finalReport;
+            } else if (chunk.error) {
+              writeStreamError(controller, new Error(String(chunk.error)));
+              return;
             }
           }
           
@@ -74,7 +85,7 @@ export async function POST(req: NextRequest) {
             controller.close();
             return;
           }
-          controller.error(err);
+          writeStreamError(controller, err);
         }
       }
     });

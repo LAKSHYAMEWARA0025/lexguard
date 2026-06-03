@@ -124,6 +124,7 @@ export function useContractAnalysis() {
       const decoder = new TextDecoder("utf-8");
 
       let finalReportData = null;
+      let streamErrored = false;
       let buffer = "";
 
       while (true) {
@@ -143,6 +144,16 @@ export function useContractAnalysis() {
           if (!line.trim()) continue;
           try {
             const chunkData = JSON.parse(line);
+
+            if (chunkData.error) {
+              const streamErrorMessage = String(chunkData.error);
+              console.error("[Frontend] Stream Error:", streamErrorMessage);
+              setErrorMessage(streamErrorMessage);
+              setStatus("error");
+              streamErrored = true;
+              controller.abort();
+              break;
+            }
 
             if (chunkData.classifierNode) setPipelineStatus("Classifying Document...");
             else if (chunkData.queryExpander) setPipelineStatus("Expanding Legal Queries...");
@@ -164,11 +175,19 @@ export function useContractAnalysis() {
             console.error("Failed to parse buffered stream line:", line);
           }
         }
+
+          if (streamErrored) {
+            break;
+          }
       }
 
       // If aborted mid-stream, exit silently without updating UI to error state
       if (signal.aborted) {
         console.log("[Frontend] 🛑 Analysis aborted by client.");
+        return;
+      }
+
+      if (streamErrored) {
         return;
       }
 
