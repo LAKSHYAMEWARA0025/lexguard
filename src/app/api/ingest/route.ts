@@ -107,58 +107,16 @@ export async function POST(req: NextRequest) {
 
     // 3. Split into semantic chunks by isolating distinct paragraphs and clauses
     console.log('5. Starting chunking');
-    const rawChunks = fullText
-      .split('\n\n')
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1200,
+      chunkOverlap: 250,
+    });
+
+    const rawChunks = await splitter.splitText(fullText);
+    const chunks = rawChunks
       .map(chunk => chunk.trim())
-      .filter(chunk => chunk.length >= 10);
-
-    const mergeSemanticChunks = (
-      chunks: string[],
-      minChars = 500,
-      targetChars = 900,
-      maxChars = 1200
-    ) => {
-      const grouped: string[] = [];
-      let current = '';
-
-      for (const chunk of chunks) {
-        if (!current) {
-          current = chunk;
-          continue;
-        }
-
-        const separator = current.endsWith('\n') ? '' : '\n\n';
-        const candidate = `${current}${separator}${chunk}`;
-
-        if (candidate.length <= targetChars) {
-          current = candidate;
-          continue;
-        }
-
-        if (current.length < minChars && candidate.length <= maxChars) {
-          current = candidate;
-          continue;
-        }
-
-        grouped.push(current);
-        current = chunk;
-      }
-
-      if (current) {
-        const previous = grouped[grouped.length - 1];
-
-        if (previous && current.length < minChars && previous.length + current.length + 2 <= maxChars) {
-          grouped[grouped.length - 1] = `${previous}\n\n${current}`;
-        } else {
-          grouped.push(current);
-        }
-      }
-
-      return grouped;
-    };
-
-    const groupedChunks = mergeSemanticChunks(rawChunks);
-    const chunks = groupedChunks.map(chunk => ({ pageContent: chunk }));
+      .filter(chunk => chunk.length >= 10)
+      .map(chunk => ({ pageContent: chunk }));
     
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
     console.log(`Chunking Success, Raw chunks: ${rawChunks.length}, Grouped chunks: ${chunks.length}`);
