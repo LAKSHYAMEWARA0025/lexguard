@@ -1,4 +1,4 @@
-export const maxDuration = 300; // Extends the timeout limit to 5 minutes
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from "next/server";

@@ -172,7 +172,12 @@ export function useContractAnalysis() {
               finalReportData = chunkData.finalReport;
             }
           } catch (e) {
-            console.error("Failed to parse buffered stream line:", line);
+            console.error("Failed to parse buffered stream line:", line, e);
+            setErrorMessage("Analysis stream returned malformed data. Please run the analysis again.");
+            setStatus("error");
+            streamErrored = true;
+            controller.abort();
+            break;
           }
         }
 

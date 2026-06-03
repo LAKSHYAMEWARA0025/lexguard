@@ -1,7 +1,35 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
+
+const FALLBACK_RISKS = [{
+  risk: "Analysis Formatting Error",
+  verdict: "The agent identified threats but failed to format them correctly. Please run the analysis again.",
+}];
+
+const toRawText = (content: unknown) => {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => {
+        if (typeof part === "string") {
+          return part;
+        }
+
+        if (part && typeof part === "object" && "text" in part) {
+          return String((part as { text?: unknown }).text ?? "");
+        }
+
+        return "";
+      })
+      .join("");
+  }
+
+  return String(content ?? "");
+};
 
 
 export async function redTeam(state: typeof GraphState.State) {
@@ -19,19 +47,7 @@ export async function redTeam(state: typeof GraphState.State) {
   const llm = new ChatGoogleGenerativeAI({
     model: "gemini-2.5-flash",
     temperature: 0,
-    streaming: true,
   });
-
-  const schema = z.object({
-    risks: z.array(z.object({
-      severity: z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]).describe("The severity level of the identified risk."),
-      clause: z.string().describe("The exact offending text snippet from the document."),
-      issue: z.string().describe("Plain-English explanation of the problem, trap, or vulnerability."),
-      recommendation: z.string().describe("What to demand, negotiate, or change instead.")
-    })).describe("List of identified risks, liabilities, and traps in the contract.")
-  });
-
-  const structuredLlm = llm.withStructuredOutput(schema, { name: "extract" });
 
   const contextText = retrievedChunks.map(chunk => chunk.content).join("\n\n---\n\n");
 
@@ -60,15 +76,23 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
   console.log(`[RedTeamNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
   try {
-    const response = await withRetry(() => structuredLlm.invoke(prompt));
-    console.log("[RedTeamNode] Zod validation passed!");
-    console.log(`[RedTeamNode] Successfully finished. Final structured output writing to state: ${response?.risks?.length || 0} risks identified.`);
+    const response = await withRetry(() => llm.invoke(prompt));
+    const rawOutput = toRawText((response as any)?.content);
+    const cleanedOutput = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    return {
-      risks: response?.risks || [],
-    };
+    try {
+      const parsedOutput = JSON.parse(cleanedOutput);
+      const risks = Array.isArray(parsedOutput?.risks) ? parsedOutput.risks : (Array.isArray(parsedOutput) ? parsedOutput : []);
+
+      console.log(`[RedTeamNode] Successfully finished. Parsed ${risks.length} risks.`);
+      return { risks };
+    } catch (parseError: any) {
+      console.error("[RedTeamNode] Failed to parse LLM JSON output:", parseError?.message || parseError);
+      return { risks: FALLBACK_RISKS };
+    }
+
   } catch (error: any) {
     console.error("[RedTeamNode] CRITICAL ERROR:", error.message || error);
-    return { risks: [] };
+    return { risks: FALLBACK_RISKS };
   }
 }

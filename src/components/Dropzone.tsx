@@ -63,19 +63,6 @@ export default function Dropzone({
         {/* Below: The upload panel */}
         <div className="w-full max-w-sm mt-4 anim-fade-up [animation-delay:600ms]">
 
-          {/* Error */}
-          {status === "error" && (
-            <div className="mb-6 flex flex-col items-start gap-2 px-5 py-4 rounded-xl bg-red-950/60 border border-red-900/50 shadow-[0_0_20px_rgba(220,38,38,0.15)] w-full text-left">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2 text-red-400 font-semibold text-sm tracking-wide uppercase">
-                  <ShieldAlert size={16} /> Server Error
-                </div>
-                <button onClick={onDismissError} className="text-red-500 hover:text-red-300 transition-colors">✕</button>
-              </div>
-              <p className="text-white text-[13px] leading-relaxed mt-1">{errorMessage}</p>
-            </div>
-          )}
-
           {/* Dropzone card */}
           <div
             onDragOver={(e) => e.preventDefault()}

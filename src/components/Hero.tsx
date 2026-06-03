@@ -58,6 +58,17 @@ export default function Hero({ state, actions, onToggleSidebar }: HeroProps) {
         <AuthButton />
       </nav>
 
+      {state.status === "error" && state.errorMessage && (
+        <div className="mx-6 rounded-xl border border-red-900/50 bg-red-950/60 px-4 py-3 text-left shadow-[0_0_24px_rgba(220,38,38,0.15)]" role="alert">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-red-400">
+            Analysis Error
+          </div>
+          <div className="mt-1 text-sm leading-relaxed text-white">
+            {state.errorMessage}
+          </div>
+        </div>
+      )}
+
       {/* ══════════════════════════ STATE 1: IDLE ══════════════════════════ */}
       {(state.status === "idle" || state.status === "error") && !state.report && (
         <Dropzone
