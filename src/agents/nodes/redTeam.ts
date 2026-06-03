@@ -19,6 +19,7 @@ export async function redTeam(state: typeof GraphState.State) {
   const llm = new ChatGoogleGenerativeAI({
     model: "gemini-2.5-flash",
     temperature: 0,
+    streaming: true,
   });
 
   const schema = z.object({
