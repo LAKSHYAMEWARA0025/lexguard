@@ -105,10 +105,10 @@ export async function retrieverNode(state: typeof GraphState.State) {
       }
     });
 
-    let finalArray = Array.from(deduplicatedChunksMap.values());
+    let finalChunksToKeep = Array.from(deduplicatedChunksMap.values());
 
-    if (finalArray.length > 15) {
-      console.log(`[RetrieverNode] Retrieved ${finalArray.length} chunks. Invoking Reranker...`);
+    if (finalChunksToKeep.length > 15) {
+      console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Reranker...`);
       
       const llm = new ChatGoogleGenerativeAI({
         model: "gemini-3.5-flash",
@@ -121,7 +121,7 @@ export async function retrieverNode(state: typeof GraphState.State) {
       
       const structuredLlm = llm.withStructuredOutput(schema, { name: "rerank" });
       
-      const excerptsText = finalArray.map((c: any) => `ID: ${c.id}\nContent: ${c.content}`).join("\n\n---\n\n");
+      const excerptsText = finalChunksToKeep.map((c: any) => `ID: ${c.id}\nContent: ${c.content}`).join("\n\n---\n\n");
       const queriesText = queries.join(", ");
       
       const prompt = `You are a legal triage agent. Review these document excerpts against our search queries: [${queriesText}]. Filter out standard boilerplate. Return a JSON array containing ONLY the IDs of the top 15 most potentially dangerous, exploitative, or asymmetric chunks. Prioritize anything related to fees, IP loss, liability shields, or termination traps.
@@ -135,18 +135,20 @@ export async function retrieverNode(state: typeof GraphState.State) {
         const response = await structuredLlm.invoke(prompt);
         console.log(`[RetrieverNode] Reranker returned ${response?.keepIds?.length || 0} IDs to keep.`);
         if (response && response.keepIds) {
-          const keepSet = new Set(response.keepIds.map(String));
-          finalArray = finalArray.filter((c: any) => keepSet.has(String(c.id)));
+          const rerankerIds = response.keepIds;
+          finalChunksToKeep = finalChunksToKeep.filter((chunk: any) => 
+            rerankerIds.includes(chunk.id)
+          );
         }
       } catch (err: any) {
         console.error("[RetrieverNode] Reranker failed, falling back to all retrieved chunks.", err.message || err);
       }
     }
 
-    console.log(`[RetrieverNode] Successfully finished. Final structured output writing to state: ${finalArray.length} unique chunks retrieved.`);
+    console.log(`[RetrieverNode] Successfully finished. Final structured output writing to state: ${finalChunksToKeep.length} unique chunks retrieved.`);
 
     // Return the updated state
-    return { retrievedChunks: finalArray };
+    return { retrievedChunks: finalChunksToKeep };
   } catch (error: any) {
     console.error("[RetrieverNode] CRITICAL ERROR:", error.message || error);
     return { retrievedChunks: [] };
