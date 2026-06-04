@@ -1,6 +1,7 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
+import { HarmBlockThreshold, HarmCategory } from "@google/generative-ai";
 
 const FALLBACK_RISKS = [{
   risk: "Analysis Formatting Error",
@@ -31,7 +32,6 @@ const toRawText = (content: unknown) => {
   return String(content ?? "");
 };
 
-
 export async function redTeam(state: typeof GraphState.State) {
   console.log("[RedTeamNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0 }));
 
@@ -47,9 +47,17 @@ export async function redTeam(state: typeof GraphState.State) {
   const llm = new ChatGoogleGenerativeAI({
     model: "gemini-3.5-flash",
     temperature: 0,
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+      }
+    ]
   });
 
-  const contextText = retrievedChunks.map(chunk => chunk.content).join("\n\n---\n\n");
+  const contextText = retrievedChunks
+    .map(chunk => chunk.text || chunk.pageContent || chunk.content || JSON.stringify(chunk))
+    .join("\n\n---\n\n");
 
   const prompt = `You are a ruthless, highly aggressive "vulture lawyer" acting as an adversarial AI agent.
 Your sole job is to completely destroy this contract. You are not here to be fair. You are here to find every possible exploit, trap, and liability.
@@ -70,7 +78,17 @@ Do not be polite. Be precise and merciless. Return only the structured JSON of t
 CONTRACT EXCERPTS:
 ${contextText}
 
-CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.
+CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching this exact schema:
+{
+  "risks": [
+    {
+      "severity": "CRITICAL",
+      "clause": "The exact quoted text from the contract",
+      "issue": "Your ruthless explanation of the trap"
+    }
+  ]
+}
+Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.
 `;
 
   console.log(`[RedTeamNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
@@ -78,21 +96,19 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
   try {
     const response = await withRetry(() => llm.invoke(prompt));
     const rawOutput = toRawText((response as any)?.content);
-    const cleanedOutput = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    try {
-      const parsedOutput = JSON.parse(cleanedOutput);
-      const risks = Array.isArray(parsedOutput?.risks) ? parsedOutput.risks : (Array.isArray(parsedOutput) ? parsedOutput : []);
+    const cleanedOutput = rawOutput
+      .replace(/```json\s*/gi, "")
+      .replace(/```\s*/gi, "")
+      .trim();
 
-      console.log(`[RedTeamNode] Successfully finished. Parsed ${risks.length} risks.`);
-      return { risks };
-    } catch (parseError: any) {
-      console.error("[RedTeamNode] Failed to parse LLM JSON output:", parseError?.message || parseError);
-      return { risks: FALLBACK_RISKS };
-    }
+    const parsed = JSON.parse(cleanedOutput);
+    const risks = parsed?.risks ?? FALLBACK_RISKS;
 
-  } catch (error: any) {
-    console.error("[RedTeamNode] CRITICAL ERROR:", error.message || error);
+    console.log(`[RedTeamNode] Successfully parsed ${risks.length} risks.`);
+    return { risks };
+  } catch (error) {
+    console.error("[RedTeamNode] Failed to parse response:", error);
     return { risks: FALLBACK_RISKS };
   }
 }
