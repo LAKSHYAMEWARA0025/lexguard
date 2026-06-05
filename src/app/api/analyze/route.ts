@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
             }
           }
           
-          // Only persist the report if the client is still connected
-          if (finalReportJson && !clientSignal.aborted) {
+          // Only persist the report if it was successfully generated
+          if (finalReportJson) {
             supabase.from('reports').insert({
               user_id: user.id,
               filename: filename || 'Unknown Document',
