@@ -15,7 +15,7 @@ export async function verifierNode(state: typeof GraphState.State) {
   }
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-flash-latest",
+    model: "gemini-2.5-flash",
     temperature: 0,
   });
 
