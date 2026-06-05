@@ -1,7 +1,7 @@
-# LEXGUARD Context
+# VANGUARD Context
 
 ## Overall Goal
-Building LEXGUARD: an adversarial, multi-agent AI contract intelligence platform.
+Building VANGUARD: an adversarial, multi-agent AI contract intelligence platform.
 
 ## Tech Stack
 - **Frontend/Backend:** Next.js (App Router, TypeScript, Tailwind CSS)

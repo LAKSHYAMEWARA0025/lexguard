@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
 
     const stream = await analyzeGraph.stream({ documentId: documentId });
     const encoder = new TextEncoder();
-    // Capture the client's abort signal to halt processing on disconnect
     const clientSignal = req.signal;
 
     const writeStreamError = (controller: ReadableStreamDefaultController, error: any) => {
@@ -42,7 +41,6 @@ export async function POST(req: NextRequest) {
         let finalReportJson = null;
         try {
           for await (const chunk of stream) {
-            // If the client disconnected, stop iterating immediately
             if (clientSignal.aborted) {
               console.log("[Backend] 🛑 Client disconnected — halting stream.");
               break;
@@ -51,39 +49,45 @@ export async function POST(req: NextRequest) {
             // Send each LangGraph node's output as it finishes
             controller.enqueue(encoder.encode(JSON.stringify(chunk) + '\n'));
             
-            // Extract final report
-            if (chunk.advisorNode && chunk.advisorNode.finalReport) {
-               finalReportJson = chunk.advisorNode.finalReport;
-            } else if (chunk.advisorNode && chunk.advisorNode.advisorReport) {
-               finalReportJson = chunk.advisorNode;
+            // Extract final report safely from multiple variations of the node names
+            if (chunk.advisorNode && (chunk.advisorNode.finalReport || chunk.advisorNode.advisorReport)) {
+               finalReportJson = chunk.advisorNode.finalReport || chunk.advisorNode.advisorReport;
+            } else if (chunk.advisor && (chunk.advisor.finalReport || chunk.advisor.advisorReport)) {
+               finalReportJson = chunk.advisor.finalReport || chunk.advisor.advisorReport;
             } else if (chunk.finalReport) {
                finalReportJson = chunk.finalReport;
             } else if (chunk.advisorReport) {
-               finalReportJson = chunk;
+               finalReportJson = chunk.advisorReport;
             } else if (chunk.error) {
               writeStreamError(controller, new Error(String(chunk.error)));
               return;
             }
           }
           
-          // Only persist the report if it was successfully generated
+          // FIXED: We must strictly AWAIT database interactions before closing the stream controller
           if (finalReportJson) {
-            supabase.from('reports').insert({
-              user_id: user.id,
-              filename: filename || 'Unknown Document',
-              threat_matrix: finalReportJson
-            }).then(({ error }) => {
+            console.log("[Backend] 💾 Saving final report to Supabase...");
+            try {
+              const { error } = await supabase.from('reports').insert({
+                user_id: user.id,
+                filename: filename || 'Unknown Document',
+                threat_matrix: finalReportJson
+              });
+
               if (error) {
                 console.error("[Backend Database Error]:", error);
               } else {
                 console.log("[Backend] ✅ Successfully saved report to database.");
               }
-            });
+            } catch (dbErr) {
+              console.error("[Backend Database Exception]:", dbErr);
+            }
+          } else {
+            console.warn("[Backend Warning] Stream ended but no matching finalReportJson layout was found.");
           }
           
           controller.close();
         } catch (err) {
-          // Swallow abort-related errors from the stream iterator
           if (clientSignal.aborted) {
             console.log("[Backend] 🛑 Stream aborted due to client disconnect.");
             controller.close();
@@ -93,6 +97,7 @@ export async function POST(req: NextRequest) {
         }
       }
     });
+
     return new Response(readable, { headers: { 'Content-Type': 'application/x-ndjson' } });
   } catch (error: any) {
     console.error("[Backend Route Error]:", error);
