@@ -41,6 +41,9 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
     };
   } catch (error: any) {
     console.error("[QueryExpander] CRITICAL ERROR:", error.message || error);
+    if (error.message === "RATE_LIMIT_EXCEEDED") {
+      return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
+    }
     return { queries: [] };
   }
 }

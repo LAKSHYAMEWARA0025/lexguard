@@ -34,5 +34,13 @@ export const GraphState = Annotation.Root({
   finalReport: Annotation<FinalReport | null>({
     reducer: (curr, next) => next,
     default: () => null,
+  }),
+  status: Annotation<string>({
+    reducer: (curr, next) => next,
+    default: () => "success",
+  }),
+  uiMessage: Annotation<string>({
+    reducer: (curr, next) => next,
+    default: () => "",
   })
 });

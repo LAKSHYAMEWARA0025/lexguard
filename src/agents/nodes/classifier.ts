@@ -57,6 +57,9 @@ export async function classifierNode(state: typeof GraphState.State) {
     return { documentContext: response.context };
   } catch (err: any) {
     console.error("[ClassifierNode] CRITICAL ERROR:", err.message || err);
+    if (err.message === "RATE_LIMIT_EXCEEDED") {
+      return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
+    }
     return { documentContext: "Standard legal contract." };
   }
 }

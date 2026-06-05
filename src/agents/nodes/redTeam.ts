@@ -107,8 +107,11 @@ Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <functi
 
     console.log(`[RedTeamNode] Successfully parsed ${risks.length} risks.`);
     return { risks };
-  } catch (error) {
+  } catch (error: any) {
     console.error("[RedTeamNode] Failed to parse response:", error);
+    if (error.message === "RATE_LIMIT_EXCEEDED") {
+      return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
+    }
     return { risks: FALLBACK_RISKS };
   }
 }

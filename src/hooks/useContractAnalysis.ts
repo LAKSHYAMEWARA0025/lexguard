@@ -145,6 +145,19 @@ export function useContractAnalysis() {
           try {
             const chunkData = JSON.parse(line);
 
+            const nodeValues = Object.values(chunkData) as any[];
+            const nodeWithError = nodeValues.find(node => node && typeof node === 'object' && node.status === 'error');
+            
+            if (chunkData.status === 'error' || nodeWithError) {
+              const streamErrorMessage = chunkData.uiMessage || nodeWithError?.uiMessage || "An error occurred during analysis.";
+              console.error("[Frontend] Stream Error (Rate Limit / Custom):", streamErrorMessage);
+              setErrorMessage(streamErrorMessage);
+              setStatus("error");
+              streamErrored = true;
+              controller.abort();
+              break;
+            }
+
             if (chunkData.error) {
               const streamErrorMessage = String(chunkData.error);
               console.error("[Frontend] Stream Error:", streamErrorMessage);

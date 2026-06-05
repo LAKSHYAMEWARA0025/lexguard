@@ -61,6 +61,9 @@ export async function verifierNode(state: typeof GraphState.State) {
     return { risks: response.verifiedRisks };
   } catch (error: any) {
     console.error("[VerifierNode] CRITICAL ERROR:", error.message || error);
+    if (error.message === "RATE_LIMIT_EXCEEDED") {
+      return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
+    }
     // If parsing fails, return original risks so pipeline doesn't crash, but log the failure
     return { risks };
   }
