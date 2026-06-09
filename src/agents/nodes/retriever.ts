@@ -81,7 +81,7 @@ export async function retrieverNode(state: typeof GraphState.State) {
       console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Reranker with 15s timeout...`);
       
       const llm = new ChatGoogleGenerativeAI({
-        model: "gemini-1.5-flash", // Standardized to match pipeline
+        model: "gemini-3.5-flash", // Standardized to match pipeline
         temperature: 0,
         maxRetries: 1, // Prevent infinite internal SDK loops
       });
