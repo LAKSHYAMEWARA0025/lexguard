@@ -111,7 +111,7 @@ export async function retrieverNode(state: typeof GraphState.State) {
       console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Reranker...`);
       
       const llm = new ChatGoogleGenerativeAI({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         temperature: 0,
       });
 
