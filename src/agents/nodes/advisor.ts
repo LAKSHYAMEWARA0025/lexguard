@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq"; // Switched to Groq
 import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
@@ -20,10 +20,12 @@ export async function advisorNode(state: typeof GraphState.State) {
 
   console.log(`[AdvisorNode] Inputs - Received ${risks.length} risks from Red Team.`);
 
-  const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash", // Kept exactly as you verified
+  // FIXED: Switched to Groq's 70B model for blazing fast, high-quality text translation
+  const llm = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama-3.3-70b-versatile", 
     temperature: 0,
-    maxRetries: 1, // FIXED: Prevents the SDK from infinitely retrying network hangs
+    maxRetries: 1, // Prevents the SDK from infinitely retrying network hangs
   });
 
   const schema = z.object({
@@ -58,7 +60,7 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
 
   console.log(`[AdvisorNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
-  // FIXED: 60-second hard timeout. Gives it plenty of time to write out the advice for 12+ risks, but protects Vercel.
+  // 60-second hard timeout. Gives it plenty of time to write out the advice for 12+ risks, but protects Vercel.
   const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error("ADVISOR_TIMEOUT")), 60000)
   );

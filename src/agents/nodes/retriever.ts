@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
+import { ChatGroq } from "@langchain/groq"; // Switched to Groq for the triage step
 import { GraphState } from '../state';
 import { z } from "zod";
 import { withRetry } from "../../lib/withRetry";
@@ -24,7 +25,7 @@ export async function retrieverNode(state: typeof GraphState.State) {
 
   let queryEmbeddings: number[][] = [];
 
-  // OPTIMIZATION: Reduced 12 individual API calls down to exactly 1 bulk call.
+  // Bulk call stays optimized to 1 single hit for all 12 strings
   console.log(`[RetrieverNode] Generating embeddings for ${queries.length} queries in a single bulk request...`);
   try {
     queryEmbeddings = await withRetry(() => embeddingsModel.embedDocuments(queries));
@@ -78,12 +79,14 @@ export async function retrieverNode(state: typeof GraphState.State) {
     let finalChunksToKeep = Array.from(deduplicatedChunksMap.values());
 
     if (finalChunksToKeep.length > 15) {
-      console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Reranker with 15s timeout...`);
+      console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Groq Reranker with 15s timeout...`);
       
-      const llm = new ChatGoogleGenerativeAI({
-        model: "gemini-2.5-flash", // Standardized to match pipeline
+      // FIXED: Swapped to Groq to bypass Gemini rate limits on the chunk triage phase
+      const llm = new ChatGroq({
+        apiKey: process.env.GROQ_API_KEY,
+        model: "llama-3.1-8b-instant", 
         temperature: 0,
-        maxRetries: 1, // Prevent infinite internal SDK loops
+        maxRetries: 1, // Stops internal SDK loop delays
       });
 
       const schema = z.object({
@@ -102,7 +105,6 @@ export async function retrieverNode(state: typeof GraphState.State) {
       
       CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
       
-      // FIXED: 15-second hard timeout for the Reranker to prevent pipeline freezing
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("RERANKER_TIMEOUT")), 15000)
       );
@@ -116,25 +118,24 @@ export async function retrieverNode(state: typeof GraphState.State) {
         console.log(`[RetrieverNode] Reranker returned ${response?.keepIds?.length || 0} IDs to keep.`);
         
         if (response && response.keepIds) {
-          const rerankerIds = response.keepIds.map(String); // ensure string matching
+          const rerankerIds = response.keepIds.map(String); // clean type-casting for checking strings
           finalChunksToKeep = finalChunksToKeep.filter((chunk: any) => 
             rerankerIds.includes(String(chunk.id))
           );
         }
         
-        // Enforce a hard cap even if the LLM hallucinated more IDs
+        // Enforce a strict fallback slice in case filtering returned anomalous layout
         finalChunksToKeep = finalChunksToKeep.slice(0, 15);
         
       } catch (err: any) {
-        // FALLBACK: If the LLM times out or fails, bypass cleanly and take the top 15 chunks
-        console.warn("[RetrieverNode] Reranker timed out or failed. Bypassing and using top 15 vector search chunks.", err.message || "");
+        // FALLBACK: If Groq hangs or encounters errors, slice directly and push execution forward
+        console.warn("[RetrieverNode] Groq Reranker timed out or failed. Bypassing and using top 15 vector search chunks.", err.message || "");
         finalChunksToKeep = finalChunksToKeep.slice(0, 15);
       }
     }
 
     console.log(`[RetrieverNode] Successfully finished. Final structured output writing to state: ${finalChunksToKeep.length} unique chunks retrieved.`);
 
-    // Return the updated state
     return { retrievedChunks: finalChunksToKeep };
   } catch (error: any) {
     console.error("[RetrieverNode] CRITICAL ERROR:", error.message || error);
