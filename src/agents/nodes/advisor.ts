@@ -3,8 +3,6 @@ import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 export async function advisorNode(state: typeof GraphState.State) {
   console.log("[AdvisorNode] Started. Input data:", JSON.stringify({ risksCount: state.risks?.length || 0 }));
 
@@ -23,8 +21,9 @@ export async function advisorNode(state: typeof GraphState.State) {
   console.log(`[AdvisorNode] Inputs - Received ${risks.length} risks from Red Team.`);
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-3.5-flash", // Lightning fast, 1M TPM free limit
+    model: "gemini-3.5-flash", // Kept exactly as you verified
     temperature: 0,
+    maxRetries: 1, // FIXED: Prevents the SDK from infinitely retrying network hangs
   });
 
   const schema = z.object({
@@ -59,9 +58,18 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
 
   console.log(`[AdvisorNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
+  // FIXED: 60-second hard timeout. Gives it plenty of time to write out the advice for 12+ risks, but protects Vercel.
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("ADVISOR_TIMEOUT")), 60000)
+  );
+
   try {
-    await sleep(3000); // Throttle to prevent Groq TPM burst limits
-    const response = await withRetry(() => structuredLlm.invoke(prompt));
+    // Race your retry wrapper against the 60-second network gate
+    const response = await Promise.race([
+      withRetry(() => structuredLlm.invoke(prompt)),
+      timeoutPromise
+    ]) as z.infer<typeof schema>;
+    
     console.log("[AdvisorNode] Zod validation passed!");
     console.log(`[AdvisorNode] Successfully finished. Final structured output writing to state: \n${JSON.stringify(response, null, 2).substring(0, 500)}...`);
 
@@ -70,9 +78,15 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching t
     };
   } catch (error: any) {
     console.error("[AdvisorNode] CRITICAL ERROR:", error.message || error);
+    
+    // Safely trigger your full-stack error states
     if (error.message === "RATE_LIMIT_EXCEEDED") {
       return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
     }
+    if (error.message === "ADVISOR_TIMEOUT") {
+      return { status: "error", uiMessage: "The advisor engine timed out while generating the final report. Please try again." };
+    }
+    
     return { 
       finalReport: {
         advisorReport: [],

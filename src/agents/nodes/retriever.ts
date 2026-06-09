@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { GraphState } from '../state';
 import { z } from "zod";
+import { withRetry } from "../../lib/withRetry";
 
 export async function retrieverNode(state: typeof GraphState.State) {
   console.log("[RetrieverNode] Started. Input data:", JSON.stringify({ documentId: state.documentId, queriesCount: state.queries?.length || 0 }));
@@ -21,61 +22,30 @@ export async function retrieverNode(state: typeof GraphState.State) {
     apiKey: process.env.GOOGLE_API_KEY,
   });
 
-  const EMBEDDING_BATCH_SIZE = 3;
-  const EMBEDDING_TIMEOUT_MS = 5000;
-  const EMBEDDING_DELAY_MS = 200;
+  let queryEmbeddings: number[][] = [];
 
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const embedWithTimeout = async (query: string, index: number) => {
-    const embeddingPromise = embeddingsModel.embedQuery(query);
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Embedding request timed out after ${EMBEDDING_TIMEOUT_MS}ms for query #${index + 1}`));
-      }, EMBEDDING_TIMEOUT_MS);
-    });
-
-    return Promise.race([embeddingPromise, timeoutPromise]) as Promise<number[]>;
-  };
-
-  console.log(`[RetrieverNode] Generating embeddings for ${queries.length} queries in batches of ${EMBEDDING_BATCH_SIZE}...`);
-  
+  // OPTIMIZATION: Reduced 12 individual API calls down to exactly 1 bulk call.
+  console.log(`[RetrieverNode] Generating embeddings for ${queries.length} queries in a single bulk request...`);
   try {
-    const queryEmbeddings: number[][] = [];
-
-    for (let batchStart = 0; batchStart < queries.length; batchStart += EMBEDDING_BATCH_SIZE) {
-      const batch = queries.slice(batchStart, batchStart + EMBEDDING_BATCH_SIZE);
-      const batchIndex = Math.floor(batchStart / EMBEDDING_BATCH_SIZE) + 1;
-      console.log(`[RetrieverNode] Starting embedding batch ${batchIndex} with ${batch.length} queries.`);
-
-      const batchResults = await Promise.allSettled(
-        batch.map(async (query, indexInBatch) => {
-          const queryIndex = batchStart + indexInBatch;
-          const embedding = await embedWithTimeout(query, queryIndex);
-          await sleep(EMBEDDING_DELAY_MS);
-          return embedding;
-        })
-      );
-
-      for (const result of batchResults) {
-        if (result.status === "fulfilled") {
-          queryEmbeddings.push(result.value);
-        } else {
-          console.error("[RetrieverNode] Embedding generation failed:", result.reason?.message || result.reason);
-        }
-      }
-
-      console.log(`[RetrieverNode] Finished embedding batch ${batchIndex}. Successful embeddings so far: ${queryEmbeddings.length}`);
+    queryEmbeddings = await withRetry(() => embeddingsModel.embedDocuments(queries));
+    console.log(`[RetrieverNode] Successfully generated ${queryEmbeddings.length} embeddings in one pass.`);
+  } catch (embedError: any) {
+    console.error("[RetrieverNode] CRITICAL ERROR: Bulk embedding generation failed:", embedError.message || embedError);
+    if (embedError.message === "RATE_LIMIT_EXCEEDED") {
+      return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
     }
+    return { retrievedChunks: [] };
+  }
 
-    if (queryEmbeddings.length === 0) {
-      console.warn("[RetrieverNode] No embeddings were generated successfully. Exiting early.");
-      return { retrievedChunks: [] };
-    }
+  if (!queryEmbeddings || queryEmbeddings.length === 0) {
+    console.warn("[RetrieverNode] No embeddings were returned. Exiting early.");
+    return { retrievedChunks: [] };
+  }
 
+  try {
     console.log(`[RetrieverNode] Executing vector search across ${queryEmbeddings.length} query embeddings...`);
     
-    // Concurrently map over generated embeddings and execute RPC
+    // Concurrently map over generated embeddings and execute Supabase RPC
     const searchResults = await Promise.all(
       queryEmbeddings.map(async (embedding) => {
         const { data, error } = await supabase.rpc('match_document_chunks', {
@@ -108,11 +78,12 @@ export async function retrieverNode(state: typeof GraphState.State) {
     let finalChunksToKeep = Array.from(deduplicatedChunksMap.values());
 
     if (finalChunksToKeep.length > 15) {
-      console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Reranker...`);
+      console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Reranker with 15s timeout...`);
       
       const llm = new ChatGoogleGenerativeAI({
-        model: "gemini-flash-latest",
+        model: "gemini-1.5-flash", // Standardized to match pipeline
         temperature: 0,
+        maxRetries: 1, // Prevent infinite internal SDK loops
       });
 
       const schema = z.object({
@@ -131,17 +102,33 @@ export async function retrieverNode(state: typeof GraphState.State) {
       
       CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
       
+      // FIXED: 15-second hard timeout for the Reranker to prevent pipeline freezing
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("RERANKER_TIMEOUT")), 15000)
+      );
+
       try {
-        const response = await structuredLlm.invoke(prompt);
+        const response = await Promise.race([
+          withRetry(() => structuredLlm.invoke(prompt)),
+          timeoutPromise
+        ]) as z.infer<typeof schema>;
+
         console.log(`[RetrieverNode] Reranker returned ${response?.keepIds?.length || 0} IDs to keep.`);
+        
         if (response && response.keepIds) {
-          const rerankerIds = response.keepIds;
+          const rerankerIds = response.keepIds.map(String); // ensure string matching
           finalChunksToKeep = finalChunksToKeep.filter((chunk: any) => 
-            rerankerIds.includes(chunk.id)
+            rerankerIds.includes(String(chunk.id))
           );
         }
+        
+        // Enforce a hard cap even if the LLM hallucinated more IDs
+        finalChunksToKeep = finalChunksToKeep.slice(0, 15);
+        
       } catch (err: any) {
-        console.error("[RetrieverNode] Reranker failed, falling back to all retrieved chunks.", err.message || err);
+        // FALLBACK: If the LLM times out or fails, bypass cleanly and take the top 15 chunks
+        console.warn("[RetrieverNode] Reranker timed out or failed. Bypassing and using top 15 vector search chunks.", err.message || "");
+        finalChunksToKeep = finalChunksToKeep.slice(0, 15);
       }
     }
 

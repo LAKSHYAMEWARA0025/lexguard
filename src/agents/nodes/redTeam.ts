@@ -45,8 +45,9 @@ export async function redTeam(state: typeof GraphState.State) {
   console.log(`[RedTeamNode] Inputs - Received ${retrievedChunks.length} retrieved chunks.`);
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-3.5-flash",
+    model: "gemini-3.5-flash", // Kept exactly as you verified
     temperature: 0,
+    maxRetries: 1, // FIXED: Stops internal LangChain infinite retries on network fail
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -93,14 +94,23 @@ Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <functi
 
   console.log(`[RedTeamNode] Raw Prompt (truncated): ${prompt.substring(0, 500)}...`);
 
+  // FIXED: 90-second hard timeout. Gives the LLM plenty of time to write a huge JSON array, but saves Vercel from a 300s freeze.
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("RED_TEAM_TIMEOUT")), 90000)
+  );
+
   try {
-    const response = await withRetry(() => llm.invoke(prompt));
+    const response = await Promise.race([
+      withRetry(() => llm.invoke(prompt)),
+      timeoutPromise
+    ]);
+    
     const rawOutput = toRawText((response as any)?.content);
 
     const cleanedOutput = rawOutput
-      .replace(/```json\s*/gi, "")
-      .replace(/```\s*/gi, "")
-      .trim();
+  .replace(/json\s*/gi, "")
+  .replace(/\s*/gi, "")
+  .trim();
 
     const parsed = JSON.parse(cleanedOutput);
     const risks = parsed?.risks ?? FALLBACK_RISKS;
@@ -108,10 +118,15 @@ Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <functi
     console.log(`[RedTeamNode] Successfully parsed ${risks.length} risks.`);
     return { risks };
   } catch (error: any) {
-    console.error("[RedTeamNode] Failed to parse response:", error);
+    console.error("[RedTeamNode] Failed to parse response or timed out:", error);
+    
     if (error.message === "RATE_LIMIT_EXCEEDED") {
       return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
     }
+    if (error.message === "RED_TEAM_TIMEOUT") {
+      return { status: "error", uiMessage: "The adversarial analysis timed out while processing complex threats. Please try again." };
+    }
+    
     return { risks: FALLBACK_RISKS };
   }
 }

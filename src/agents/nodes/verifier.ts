@@ -3,7 +3,6 @@ import { z } from "zod";
 import { GraphState } from "../state";
 import { withRetry } from "../../lib/withRetry";
 
-
 export async function verifierNode(state: typeof GraphState.State) {
   console.log("[VerifierNode] Started. Input data:", JSON.stringify({ retrievedChunksCount: state.retrievedChunks?.length || 0, risksCount: state.risks?.length || 0 }));
 
@@ -15,8 +14,9 @@ export async function verifierNode(state: typeof GraphState.State) {
   }
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-2.5-flash",
+    model: "gemini-2.5-flash", // Kept exactly as you verified
     temperature: 0,
+    maxRetries: 1, // FIXED: Prevents infinite SDK retries on network drops
   });
 
   // We mirror the Red Team's risk schema to seamlessly overwrite the state
@@ -31,7 +31,11 @@ export async function verifierNode(state: typeof GraphState.State) {
 
   const structuredLlm = llm.withStructuredOutput(schema, { name: "extract" });
 
-  const chunkContext = retrievedChunks.map(c => c.content).join("\n\n---\n\n");
+  // FIXED CRITICAL BUG: Used robust text extraction so the Verifier isn't reading a blank document
+  const chunkContext = retrievedChunks
+    .map(c => c.text || c.pageContent || c.content || JSON.stringify(c))
+    .join("\n\n---\n\n");
+    
   const risksToVerify = JSON.stringify(risks, null, 2);
 
   const prompt = `You are a strict Legal Auditor. Your primary directive is to prevent AI hallucinations.
@@ -53,17 +57,33 @@ export async function verifierNode(state: typeof GraphState.State) {
   
   CRITICAL SPEED CONSTRAINT: You must be extremely concise. Limit your 'reasoning' or 'explanation' fields to a maximum of 2 short sentences per risk. Do not write lengthy paragraphs. Generate your JSON output as fast as possible.`;
 
+  // FIXED: 60-second timeout to protect the serverless execution window
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("VERIFIER_TIMEOUT")), 60000)
+  );
+
   try {
-    const response = await withRetry(() => structuredLlm.invoke(prompt));
+    const response = await Promise.race([
+      withRetry(() => structuredLlm.invoke(prompt)),
+      timeoutPromise
+    ]) as z.infer<typeof schema>;
+    
     console.log(`[VerifierNode] Successfully finished. Verified ${response.verifiedRisks.length}/${risks.length} risks.`);
 
     // Overwrite the unverified risks with the strictly verified ones
     return { risks: response.verifiedRisks };
   } catch (error: any) {
     console.error("[VerifierNode] CRITICAL ERROR:", error.message || error);
+    
     if (error.message === "RATE_LIMIT_EXCEEDED") {
       return { status: "error", uiMessage: "We are experiencing high traffic. Please wait a moment and try again." };
     }
+    
+    if (error.message === "VERIFIER_TIMEOUT") {
+      console.warn("[VerifierNode] Verification timed out. Passing original risks forward to maintain pipeline momentum.");
+      return { risks };
+    }
+
     // If parsing fails, return original risks so pipeline doesn't crash, but log the failure
     return { risks };
   }
