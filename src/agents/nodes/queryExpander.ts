@@ -28,6 +28,8 @@ CRITICAL FORMATTING INSTRUCTION: You must return ONLY a raw, valid JSON object s
 {
   "queries": ["query1", "query2", "...", "query12"]
 }
+Start your response exactly with { and end exactly with }. 
+Provide absolutely NO conversational text, NO markdown formatting, and NO HTML/XML tags. Just the JSON object.
 Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the raw JSON object.`;
 
   console.log(`[QueryExpander] Raw Prompt (truncated): ${prompt.substring(0, 500)}`);
