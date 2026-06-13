@@ -107,10 +107,13 @@ Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <functi
     
     const rawOutput = toRawText((response as any)?.content);
 
-    const cleanedOutput = rawOutput
-  .replace(/json\s*/gi, "")
-  .replace(/\s*/gi, "")
-  .trim();
+    const firstOpenBrace = rawOutput.indexOf("{");
+    const lastCloseBrace = rawOutput.lastIndexOf("}");
+    let cleanedOutput = rawOutput;
+    
+    if (firstOpenBrace !== -1 && lastCloseBrace !== -1) {
+      cleanedOutput = rawOutput.substring(firstOpenBrace, lastCloseBrace + 1).trim();
+    }
 
     const parsed = JSON.parse(cleanedOutput);
     const risks = parsed?.risks ?? FALLBACK_RISKS;

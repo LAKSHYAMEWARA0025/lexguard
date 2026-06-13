@@ -89,36 +89,41 @@ export async function retrieverNode(state: typeof GraphState.State) {
         maxRetries: 1, // Stops internal SDK loop delays
       });
 
-      const schema = z.object({
-        keepIds: z.array(z.string()).describe("Array of string IDs of the chunks to keep."),
-      });
-      
-      const structuredLlm = llm.withStructuredOutput(schema, { name: "rerank" });
-      
       const excerptsText = finalChunksToKeep.map((c: any) => `ID: ${c.id}\nContent: ${c.content}`).join("\n\n---\n\n");
       const queriesText = queries.join(", ");
       
-      const prompt = `You are a legal triage agent. Review these document excerpts against our search queries: [${queriesText}]. Filter out standard boilerplate. Return a JSON array containing ONLY the IDs of the top 15 most potentially dangerous, exploitative, or asymmetric chunks. Prioritize anything related to fees, IP loss, liability shields, or termination traps.
+      const prompt = `You are a legal triage agent. Review these document excerpts against our search queries: [${queriesText}]. Filter out standard boilerplate. Return a raw JSON object string with a single key 'keepIds' matching an array of string IDs. Do NOT wrap your output in markdown code fences or conversational text. Prioritize anything related to fees, IP loss, liability shields, or termination traps.
       
       EXCERPTS:
       ${excerptsText}
       
-      CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON matching the schema. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
+      CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
       
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("RERANKER_TIMEOUT")), 15000)
       );
 
       try {
-        const response = await Promise.race([
-          withRetry(() => structuredLlm.invoke(prompt)),
+        const response: any = await Promise.race([
+          withRetry(() => llm.invoke(prompt)),
           timeoutPromise
-        ]) as z.infer<typeof schema>;
+        ]);
 
-        console.log(`[RetrieverNode] Reranker returned ${response?.keepIds?.length || 0} IDs to keep.`);
+        const rawOutput = response?.content || "";
+        const firstOpenBrace = rawOutput.indexOf("{");
+        const lastCloseBrace = rawOutput.lastIndexOf("}");
+        let cleanedOutput = rawOutput;
+
+        if (firstOpenBrace !== -1 && lastCloseBrace !== -1) {
+          cleanedOutput = rawOutput.substring(firstOpenBrace, lastCloseBrace + 1).trim();
+        }
+
+        const parsedResponse = JSON.parse(cleanedOutput);
+
+        console.log(`[RetrieverNode] Reranker returned ${parsedResponse?.keepIds?.length || 0} IDs to keep.`);
         
-        if (response && response.keepIds) {
-          const rerankerIds = response.keepIds.map(String); // clean type-casting for checking strings
+        if (parsedResponse && parsedResponse.keepIds) {
+          const rerankerIds = parsedResponse.keepIds.map(String); // clean type-casting for checking strings
           finalChunksToKeep = finalChunksToKeep.filter((chunk: any) => 
             rerankerIds.includes(String(chunk.id))
           );
