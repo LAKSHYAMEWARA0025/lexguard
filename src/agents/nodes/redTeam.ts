@@ -45,7 +45,7 @@ export async function redTeam(state: typeof GraphState.State) {
   console.log(`[RedTeamNode] Inputs - Received ${retrievedChunks.length} retrieved chunks.`);
 
   const llm = new ChatGoogleGenerativeAI({
-    model: "gemini-flash-latest", // Kept exactly as you verified
+    model: "gemini-2.5-flash", // Kept exactly as you verified
     temperature: 0,
     maxRetries: 1, // FIXED: Stops internal LangChain infinite retries on network fail
     safetySettings: [
