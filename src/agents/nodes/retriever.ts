@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
-import { ChatGroq } from "@langchain/groq"; // Switched to Groq for the triage step
+import { ChatGroq } from "@langchain/groq";
 import { GraphState } from '../state';
 import { z } from "zod";
 import { withRetry } from "../../lib/withRetry";
@@ -15,7 +15,7 @@ export async function retrieverNode(state: typeof GraphState.State) {
     console.warn("[RetrieverNode] Missing documentId or queries. Exiting early.");
     return { retrievedChunks: [] };
   }
-  
+
   console.log(`[RetrieverNode] Inputs - Document ID: ${documentId}, Queries count: ${queries.length}`);
 
   const embeddingsModel = new GoogleGenerativeAIEmbeddings({
@@ -30,6 +30,14 @@ export async function retrieverNode(state: typeof GraphState.State) {
   try {
     queryEmbeddings = await withRetry(() => embeddingsModel.embedDocuments(queries));
     console.log(`[RetrieverNode] Successfully generated ${queryEmbeddings.length} embeddings in one pass.`);
+
+    // Debug log: identify which queries returned empty embeddings
+    queryEmbeddings.forEach((emb, i) => {
+      if (!emb || emb.length === 0) {
+        console.warn(`[RetrieverNode] Empty embedding at index ${i} for query: "${queries[i]}"`);
+      }
+    });
+
   } catch (embedError: any) {
     console.error("[RetrieverNode] CRITICAL ERROR: Bulk embedding generation failed:", embedError.message || embedError);
     if (embedError.message === "RATE_LIMIT_EXCEEDED") {
@@ -43,12 +51,28 @@ export async function retrieverNode(state: typeof GraphState.State) {
     return { retrievedChunks: [] };
   }
 
+  // Filter out any malformed/empty embeddings before hitting Supabase
+  const validQueryEmbeddings = queryEmbeddings.filter(
+    (embedding) => Array.isArray(embedding) && embedding.length > 0
+  );
+
+  if (validQueryEmbeddings.length === 0) {
+    console.warn("[RetrieverNode] All embeddings were empty after validation. Exiting early.");
+    return { retrievedChunks: [] };
+  }
+
+  if (validQueryEmbeddings.length < queryEmbeddings.length) {
+    console.warn(
+      `[RetrieverNode] Filtered out ${queryEmbeddings.length - validQueryEmbeddings.length} empty embeddings before Supabase RPC.`
+    );
+  }
+
   try {
-    console.log(`[RetrieverNode] Executing vector search across ${queryEmbeddings.length} query embeddings...`);
-    
-    // Concurrently map over generated embeddings and execute Supabase RPC
+    console.log(`[RetrieverNode] Executing vector search across ${validQueryEmbeddings.length} query embeddings...`);
+
+    // Concurrently map over valid embeddings and execute Supabase RPC
     const searchResults = await Promise.all(
-      queryEmbeddings.map(async (embedding) => {
+      validQueryEmbeddings.map(async (embedding) => {
         const { data, error } = await supabase.rpc('match_document_chunks', {
           query_embedding: embedding,
           match_threshold: 0.5,
@@ -80,25 +104,24 @@ export async function retrieverNode(state: typeof GraphState.State) {
 
     if (finalChunksToKeep.length > 15) {
       console.log(`[RetrieverNode] Retrieved ${finalChunksToKeep.length} chunks. Invoking Groq Reranker with 15s timeout...`);
-      
-      // FIXED: Swapped to Groq to bypass Gemini rate limits on the chunk triage phase
+
       const llm = new ChatGroq({
         apiKey: process.env.GROQ_API_KEY,
-        model: "llama-3.1-8b-instant", 
+        model: "llama-3.1-8b-instant",
         temperature: 0,
-        maxRetries: 1, // Stops internal SDK loop delays
+        maxRetries: 1,
       });
 
       const excerptsText = finalChunksToKeep.map((c: any) => `ID: ${c.id}\nContent: ${c.content}`).join("\n\n---\n\n");
       const queriesText = queries.join(", ");
-      
+
       const prompt = `You are a legal triage agent. Review these document excerpts against our search queries: [${queriesText}]. Filter out standard boilerplate. Return a raw JSON object string with a single key 'keepIds' matching an array of string IDs. Do NOT wrap your output in markdown code fences or conversational text. Prioritize anything related to fees, IP loss, liability shields, or termination traps.
       
       EXCERPTS:
       ${excerptsText}
       
       CRITICAL FORMATTING INSTRUCTION: You must return ONLY raw, valid JSON. Do NOT wrap your response in markdown blocks (\`\`\`json). Do NOT output <function=extract> tags or any other conversational text. Just the JSON object.`;
-      
+
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("RERANKER_TIMEOUT")), 15000)
       );
@@ -121,17 +144,17 @@ export async function retrieverNode(state: typeof GraphState.State) {
         const parsedResponse = JSON.parse(cleanedOutput);
 
         console.log(`[RetrieverNode] Reranker returned ${parsedResponse?.keepIds?.length || 0} IDs to keep.`);
-        
+
         if (parsedResponse && parsedResponse.keepIds) {
-          const rerankerIds = parsedResponse.keepIds.map(String); // clean type-casting for checking strings
-          finalChunksToKeep = finalChunksToKeep.filter((chunk: any) => 
+          const rerankerIds = parsedResponse.keepIds.map(String);
+          finalChunksToKeep = finalChunksToKeep.filter((chunk: any) =>
             rerankerIds.includes(String(chunk.id))
           );
         }
-        
+
         // Enforce a strict fallback slice in case filtering returned anomalous layout
         finalChunksToKeep = finalChunksToKeep.slice(0, 15);
-        
+
       } catch (err: any) {
         // FALLBACK: If Groq hangs or encounters errors, slice directly and push execution forward
         console.warn("[RetrieverNode] Groq Reranker timed out or failed. Bypassing and using top 15 vector search chunks.", err.message || "");
